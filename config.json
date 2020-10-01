@@ -1,0 +1,111 @@
+{
+	"name": "Custom Record Naming",
+	"namespace": "Nottingham\\CustomRecordNaming",
+	"description": "Automatically name records according to a custom scheme.",
+	"authors": [
+		{
+			"name": "Richard Dooley",
+			"email": "richard.dooley@nottingham.ac.uk",
+			"institution": "University of Nottingham"
+		}
+	],
+	"permissions": [
+		"redcap_every_page_before_render",
+		"redcap_every_page_top"
+	],
+	"framework-version" : 3,
+	"compatibility" : { "redcap-version-min" : "9.6.5" },
+	"project-settings" : [
+		{
+			"key" : "dag-format",
+			"name" : "Restrict DAG name format (regular expression)",
+			"type" : "text"
+		},
+		{
+			"key" : "dag-format-notice",
+			"name" : "Information about DAG name format to be displayed on DAGs page",
+			"type" : "textarea"
+		},
+		{
+			"key" : "space1",
+			"name" : "<style type=\"text/css\">textarea[name=dag-format-notice]{width:300px}</style>",
+			"type" : "descriptive"
+		},
+		{
+			"key" : "numbering",
+			"name" : "Record numbering",
+			"type" : "radio",
+			"choices" : [
+				{ "value" : "P", "name" : "Project-wide (unique numbers)" },
+				{ "value" : "A", "name" : "Per arm numbering" },
+				{ "value" : "G", "name" : "Per DAG numbering" },
+				{ "value" : "AG", "name" : "Per arm and DAG numbering" }
+			],
+			"required" : true
+		},
+		{
+			"key" : "scheme-settings",
+			"name" : "Custom naming scheme",
+			"type" : "sub_settings",
+			"repeatable" : true,
+			"sub_settings" : [
+				{
+					"key" : "scheme-arm",
+					"name" : "Target arm",
+					"type" : "arm-list",
+					"required" : true
+				},
+				{
+					"key" : "scheme-name-type",
+					"name" : "Record name type",
+					"type" : "radio",
+					"choices" : [
+						{ "value" : "R", "name" : "Record number only" },
+						{ "value" : "GR", "name" : "DAG - Record number" },
+						{ "value" : "RG", "name" : "Record number - DAG" }
+					],
+					"required" : true
+				},
+				{
+					"key" : "scheme-number-pad",
+					"name" : "Zero pad record number",
+					"type" : "dropdown",
+					"choices" : [
+						{ "value" : "2", "name" : "2 digits" },
+						{ "value" : "3", "name" : "3 digits" },
+						{ "value" : "4", "name" : "4 digits" },
+						{ "value" : "5", "name" : "5 digits" },
+						{ "value" : "6", "name" : "6 digits" },
+						{ "value" : "7", "name" : "7 digits" },
+						{ "value" : "8", "name" : "8 digits" }
+					]
+				},
+				{
+					"key" : "scheme-dag-format",
+					"name" : "Accept DAG name format (regular expression)",
+					"type" : "text"
+				},
+				{
+					"key" : "scheme-dag-section",
+					"name" : "DAG format subpattern to use in record name (enter 0 to use entire matching string)",
+					"type" : "text"
+				},
+				{
+					"key" : "scheme-name-prefix",
+					"name" : "Record name prefix",
+					"type" : "text"
+				},
+				{
+					"key" : "scheme-name-separator",
+					"name" : "Record name separator",
+					"type" : "text"
+				},
+				{
+					"key" : "scheme-name-suffix",
+					"name" : "Record name suffix",
+					"type" : "text"
+				}
+			]
+		}
+	]
+}
