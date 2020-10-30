@@ -67,6 +67,11 @@
 					"required" : true
 				},
 				{
+					"key" : "scheme-number-start",
+					"name" : "Starting number",
+					"type" : "text"
+				},
+				{
 					"key" : "scheme-number-pad",
 					"name" : "Zero pad record number",
 					"type" : "dropdown",

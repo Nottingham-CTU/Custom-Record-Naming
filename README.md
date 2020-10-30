@@ -29,12 +29,13 @@ This defines how the project's records are numbered.
   In a multi-arm project, each arm can still format the number differently according to the naming
   scheme.
 * **Per arm** will maintain a separate record counter for each arm. This means that the first record
-  *in each arm* will be record number 1. In the naming scheme for each arm, a prefix, separator
-  and/or suffix must be defined so that the records for each arm are distinct.
+  *in each arm* will be record number 1 (or the defined starting number). In the naming scheme for
+  each arm, a prefix, separator and/or suffix must be defined so that the records for each arm are
+  distinct.
 * **Per DAG** will maintain a separate record counter for each DAG. This means that the first record
-  *in each DAG* will be record number 1. This is the REDCap default behaviour when DAGs are used.
-  If per DAG numbering is used, the record name type for each naming scheme must include the DAG
-  (i.e. *record number only* is not permitted).
+  *in each DAG* will be record number 1 (or the defined starting number). This is the REDCap default
+  behaviour when DAGs are used. If per DAG numbering is used, the record name type for each naming
+  scheme must include the DAG (i.e. *record number only* is not permitted).
 * **Per arm and DAG** will maintain a separate record counter for each *arm and DAG combination*.
   The limitations of *per arm* and *per DAG* numbering apply.
 
@@ -51,6 +52,13 @@ This defines whether the record name is generated using the record number only (
 record counter), using the DAG name followed by the record number, or using the record number
 followed by the DAG name. Depending on the settings of the DAG name format and subpattern, a subset
 of the DAG name may be used instead of the entire name.
+
+### Starting number
+This is the first record number that will be used. If this is not set, records will be numbered
+starting from 1.
+
+If per arm numbering is not used, the arm of the first record to be added for the project (if
+project wide numbering) or the DAG (if per DAG numbering) will decide the starting number used.
 
 ### Zero pad record number
 This allows the record number to be a fixed length. The number will be left padded with zeros to

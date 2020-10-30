@@ -119,6 +119,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				// Get the scheme settings for the arm.
 				$numbering = $this->getProjectSetting( 'numbering' );
 				$nameType = $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ];
+				$startNum = $this->getProjectSetting( 'scheme-number-start' )[ $armSettingID ];
 				$zeroPad = $this->getProjectSetting( 'scheme-number-pad' )[ $armSettingID ];
 				$namePrefix = $this->getProjectSetting( 'scheme-name-prefix' )[ $armSettingID ];
 				$nameSeparator =
@@ -144,10 +145,17 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$lastRecord =
 					json_decode( $this->getProjectSetting( 'project-last-record' ), true );
 
-				// If the record counter has not been started yet, set to 1.
+				// If the record counter has not been started yet, set to the starting number.
 				if ( ! isset( $recordCounter[ $counterID ] ) )
 				{
-					$recordCounter[ $counterID ] = 1;
+					if ( $startNum == '' )
+					{
+						$recordCounter[ $counterID ] = 1;
+					}
+					else
+					{
+						$recordCounter[ $counterID ] = intval( $startNum );
+					}
 					$lastRecord[ $counterID ] = [ 'name' => '', 'timestamp' => 0 ];
 					$this->setProjectSetting( 'project-record-counter',
 					                          json_encode( $recordCounter ) );
@@ -238,6 +246,13 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( ( $dagFormat != '' || $dagFormatNotice != '' ) &&
 		     substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 17 ) == 'DataAccessGroups/' )
 		{
+			$dagFormatErrorText = 'The DAG name you entered does not conform to the allowed' .
+			                      ' DAG name format.';
+			if ( $dagFormatNotice != '' )
+			{
+				$dagFormatErrorText .= '\n\nPlease use a DAG name which conforms to the format' .
+				                       ' described on the DAGs page.';
+			}
 
 ?>
 <script type="text/javascript">
@@ -263,7 +278,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
         }
         else
         {
-          alert( 'The DAG name you entered is not valid.' )
+          alert( '<?php echo $dagFormatErrorText; ?>' )
         }
       }
     }
@@ -276,7 +291,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
         vDoneEnter = true
         if ( field.value != '' && ! vDAGRegex.test( field.value ) )
         {
-          alert( 'The DAG name you entered is not valid.' )
+          alert( '<?php echo $dagFormatErrorText; ?>' )
           field.focus()
           field = document.createElement( 'input' )
         }
@@ -294,7 +309,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
       {
         if ( ! vDoneEnter )
         {
-          alert( 'The DAG name you entered is not valid.' )
+          alert( '<?php echo $dagFormatErrorText; ?>' )
         }
         vDoneEnter = true
         var vFocusField = field
@@ -339,7 +354,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 </script>
 <?php
 
-		}
+		} // End DAGs page content.
 
 
 
@@ -381,7 +396,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
   })
 </script>
 <?php
-		}
+		} // End Add/Edit Records page content.
 
 
 
@@ -432,8 +447,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 </script>
 <?php
 
-		}
+		} // End data entry form content.
 	}
+
 
 
 	// Validation for the module settings.
@@ -494,6 +510,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 				$errMsg .= "\n- Naming scheme " . ($i + 1) . ": Record name type" .
 				           " cannot be record number only if per DAG numbering used";
+			}
+
+			// Ensure that the starting number, if set, is a positive integer.
+			if ( $settings['scheme-number-start'][$i] != '' &&
+			     ! preg_match( '/^[1-9][0-9]*$/', $settings['scheme-number-start'][$i] ) )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": Starting number must be a positive integer";
 			}
 
 			// Validate the DAG name format for the naming scheme. This is required if the record
