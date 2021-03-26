@@ -116,92 +116,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 					$this->setProjectSetting( 'project-last-record', '{}' );
 				}
 
-				// Get the scheme settings for the arm.
-				$numbering = $this->getProjectSetting( 'numbering' );
-				$nameType = $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ];
-				$startNum = $this->getProjectSetting( 'scheme-number-start' )[ $armSettingID ];
-				$zeroPad = $this->getProjectSetting( 'scheme-number-pad' )[ $armSettingID ];
-				$namePrefix = $this->getProjectSetting( 'scheme-name-prefix' )[ $armSettingID ];
-				$nameSeparator =
-					$this->getProjectSetting( 'scheme-name-separator' )[ $armSettingID ];
-				$nameSuffix = $this->getProjectSetting( 'scheme-name-suffix' )[ $armSettingID ];
-
-				// Determine the record number using the record counter.
-				$counterID = 'project';
-				if ( $numbering == 'A' )
-				{
-					$counterID = "$armID";
-				}
-				elseif ( $numbering == 'G' )
-				{
-					$counterID = "$groupCode";
-				}
-				elseif ( $numbering == 'AG' )
-				{
-					$counterID = "$armID/$groupCode";
-				}
-				$recordCounter =
-					json_decode( $this->getProjectSetting( 'project-record-counter' ), true );
-				$lastRecord =
-					json_decode( $this->getProjectSetting( 'project-last-record' ), true );
-
-				// If the record counter has not been started yet, set to the starting number.
-				if ( ! isset( $recordCounter[ $counterID ] ) )
-				{
-					if ( $startNum == '' )
-					{
-						$recordCounter[ $counterID ] = 1;
-					}
-					else
-					{
-						$recordCounter[ $counterID ] = intval( $startNum );
-					}
-					$lastRecord[ $counterID ] = [ 'name' => '', 'timestamp' => 0 ];
-					$this->setProjectSetting( 'project-record-counter',
-					                          json_encode( $recordCounter ) );
-					$this->setProjectSetting( 'project-last-record', json_encode( $lastRecord ) );
-				}
-
-				// Check if the last record was successfully created, and increment the record
-				// counter if so. Treat the last record as created if the timestamp value is within
-				// the last 90 seconds. This ensures that if 2 users add records at roughly the same
-				// time, that different record names will be assigned. A 'keepalive' script will
-				// update the timestamp while data for the named record is being entered until the
-				// record has been saved.
-				if ( $lastRecord[ $counterID ][ 'timestamp' ] > 0 &&
-				     ( $lastRecord[ $counterID ][ 'timestamp' ] > time() - 90 ||
-				       count( \REDCap::getData( 'array',
-				                                $lastRecord[ $counterID ][ 'name' ] ) ) > 0 ) )
-				{
-					$recordCounter[ $counterID ]++;
-				}
-
-				// Create the record name.
-				// - Start by taking the value from the record counter.
-				$recordName = $recordCounter[ $counterID ];
-				// - If applicable, left pad the record number with zeros to make it the set number
-				//   of digits.
-				if ( $zeroPad != '' )
-				{
-					$recordName = str_pad( $recordName, $zeroPad, '0', STR_PAD_LEFT );
-				}
-				// - If (part of) the DAG name is to be included, prepend or append it to the
-				//   record number along with the separator.
-				if ( $nameType == 'GR' )
-				{
-					$recordName = $groupCode . $nameSeparator . $recordName;
-				}
-				elseif ( $nameType == 'RG' )
-				{
-					$recordName .= $nameSeparator . $groupCode;
-				}
-				// - Prepend the prefix and append the suffix to the record name.
-				$recordName = $namePrefix . $recordName . $nameSuffix;
-
-				// Set the new record counter and last record values.
-				$lastRecord[ $counterID ] = [ 'name' => $recordName, 'timestamp' => time() ];
-				$this->setProjectSetting( 'project-record-counter', json_encode( $recordCounter ) );
-				$this->setProjectSetting( 'project-last-record', json_encode( $lastRecord ) );
+				// Generate the new record name.
+				$recordName = $this->generateRecordName( $armID, $armSettingID, $groupCode );
 
 				// Regenerate the URL query string using the new record name and removing the 'auto'
 				// parameter, and perform a redirect to the new URL.
@@ -453,7 +369,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 	// Validation for the module settings.
-	function validateSettings( $settings )
+	public function validateSettings( $settings )
 	{
 		if ( $this->getProjectID() === null )
 		{
@@ -582,6 +498,103 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 
 		return null;
+	}
+
+
+
+	// Generate a new record name.
+	protected function generateRecordName( $armID, $armSettingID, $groupCode )
+	{
+		// TODO: consider computing armSettingID from armID within this function
+
+		// Get the scheme settings for the arm.
+		$numbering = $this->getProjectSetting( 'numbering' );
+		$nameType = $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ];
+		$startNum = $this->getProjectSetting( 'scheme-number-start' )[ $armSettingID ];
+		$zeroPad = $this->getProjectSetting( 'scheme-number-pad' )[ $armSettingID ];
+		$namePrefix = $this->getProjectSetting( 'scheme-name-prefix' )[ $armSettingID ];
+		$nameSeparator = $this->getProjectSetting( 'scheme-name-separator' )[ $armSettingID ];
+		$nameSuffix = $this->getProjectSetting( 'scheme-name-suffix' )[ $armSettingID ];
+
+		// Determine the record number using the record counter.
+		$counterID = 'project';
+		if ( $numbering == 'A' )
+		{
+			$counterID = "$armID";
+		}
+		elseif ( $numbering == 'G' )
+		{
+			$counterID = "$groupCode";
+		}
+		elseif ( $numbering == 'AG' )
+		{
+			$counterID = "$armID/$groupCode";
+		}
+		$recordCounter = json_decode( $this->getProjectSetting( 'project-record-counter' ), true );
+		$lastRecord = json_decode( $this->getProjectSetting( 'project-last-record' ), true );
+
+		// If the record counter has not been started yet, set to the starting number.
+		if ( ! isset( $recordCounter[ $counterID ] ) )
+		{
+			if ( $startNum == '' )
+			{
+				$recordCounter[ $counterID ] = 1;
+			}
+			else
+			{
+				$recordCounter[ $counterID ] = intval( $startNum );
+			}
+			$lastRecord[ $counterID ] = [ 'name' => '', 'timestamp' => 0, 'user' => '' ];
+			$this->setProjectSetting( 'project-record-counter', json_encode( $recordCounter ) );
+			$this->setProjectSetting( 'project-last-record', json_encode( $lastRecord ) );
+		}
+
+		// Check if the last record was successfully created, and increment the record counter if
+		// so. Treat the last record as created if the timestamp value is within the last 90
+		// seconds. This ensures that if 2 users add records at roughly the same time, that
+		// different record names will be assigned. A 'keepalive' script will update the timestamp
+		// while data for the named record is being entered until the record has been saved.
+		$currentUser = ( USERID == '[survey respondent]' ? '' : USERID );
+		if ( $lastRecord[ $counterID ][ 'timestamp' ] > 0 &&
+		     ( ( $lastRecord[ $counterID ][ 'timestamp' ] > time() - 90 &&
+		         ( $currentUser == '' || $currentUser != $lastRecord[ $counterID ][ 'user' ] ) ) ||
+		       count( \REDCap::getData( 'array', $lastRecord[ $counterID ][ 'name' ] ) ) > 0 ) )
+		{
+			$recordCounter[ $counterID ]++;
+		}
+
+		// Create the record name.
+		// - Start by taking the value from the record counter.
+		$recordName = $recordCounter[ $counterID ];
+		// - If applicable, left pad the record number with zeros to make it the set number
+		//   of digits.
+		if ( $zeroPad != '' )
+		{
+			$recordName = str_pad( $recordName, $zeroPad, '0', STR_PAD_LEFT );
+		}
+		// - If (part of) the DAG name is to be included, prepend or append it to the
+		//   record number along with the separator.
+		if ( $nameType == 'GR' )
+		{
+			$recordName = $groupCode . $nameSeparator . $recordName;
+		}
+		elseif ( $nameType == 'RG' )
+		{
+			$recordName .= $nameSeparator . $groupCode;
+		}
+		// - Prepend the prefix and append the suffix to the record name.
+		$recordName = $namePrefix . $recordName . $nameSuffix;
+
+		// TODO: add check that recordName does not already exist
+
+		// Set the new record counter and last record values.
+		$lastRecord[ $counterID ] = [ 'name' => $recordName, 'timestamp' => time(),
+		                              'user' => $currentUser ];
+		$this->setProjectSetting( 'project-record-counter', json_encode( $recordCounter ) );
+		$this->setProjectSetting( 'project-last-record', json_encode( $lastRecord ) );
+
+		return $recordName;
+
 	}
 
 
