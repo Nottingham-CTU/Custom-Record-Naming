@@ -379,25 +379,40 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
     {
       var vBaseURL = $('#longurl').val()
       var vInsertAfter = $('#longurl').parent()
+      var vFuncSelect = function(elem)
+      {
+        var vSel = window.getSelection()
+        var vRange = document.createRange()
+        vRange.selectNodeContents(elem)
+        vSel.removeAllRanges()
+        vSel.addRange(vRange)
+      }
       var vURLTable = $('<table><tr><th style="border:solid #000 1px">DAG</th>' +
                         '<th style="border:solid #000 1px">Public Survey URL</th></tr></table>')
-      vURLTable.append('<tr><td style="border:solid #000 1px"><i>none</i></td>' +
-                       '<td style="border:solid #000 1px">' + vBaseURL + '&amp;dag=<?php
+      var vURLTR = $('<tr><td style="border:solid #000 1px"><i>none</i></td>' +
+                     '<td style="border:solid #000 1px">' + vBaseURL + '&amp;dag=<?php
 				echo $this->dagQueryID( '' ); ?></td></tr>')
+      vURLTR.find('td').eq(1).on('click',function(){vFuncSelect(this)})
+      vURLTable.append(vURLTR)
 <?php
 				foreach ( $listDAGs as $dagID => $dagName )
 				{
 					$dagURL = $this->dagQueryID( $dagID );
 ?>
-      vURLTable.append('<tr><td style="border:solid #000 1px"><?php
+      var vURLTR = $('<tr><td style="border:solid #000 1px"><?php
 					echo addslashes( htmlspecialchars( $dagName ) ); ?></td>' +
-                       '<td style="border:solid #000 1px">' + vBaseURL + '&amp;dag=<?php
+                     '<td style="border:solid #000 1px">' + vBaseURL + '&amp;dag=<?php
 					echo addslashes( htmlspecialchars( $dagURL ) ); ?></td></tr>')
+      vURLTR.find('td').eq(1).on('click',function(){vFuncSelect(this)})
+      vURLTable.append(vURLTR)
 <?php
 				}
 ?>
       vURLTable.insertAfter( vInsertAfter )
       vInsertAfter.css('display','none')
+      vURLTable.before('<p>Please note that these URLs will only work if the DAG is valid for ' +
+                       'the custom naming scheme invoked by the public survey.</p>')
+      $('.link-actions-container, .url-actions-container').css('display', 'none')
     }
   })
 </script>
