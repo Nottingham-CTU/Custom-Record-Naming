@@ -11,7 +11,10 @@
 	],
 	"permissions": [
 		"redcap_every_page_before_render",
-		"redcap_every_page_top"
+		"redcap_every_page_top",
+		"redcap_survey_page_top",
+		"redcap_survey_complete",
+		"redcap_save_record"
 	],
 	"framework-version" : 3,
 	"compatibility" : { "redcap-version-min" : "9.6.5" },
@@ -111,6 +114,12 @@
 					"type" : "text"
 				}
 			]
+		},
+		{
+			"key" : "counter-overview",
+			"name" : "<br><a href=\"#\" onclick=\"window.open('../?prefix=custom_record_naming&amp;page=counter_overview&amp;pid='+pid);return false\">Open counter overview</a>",
+			"type" : "descriptive",
+			"super-users-only" : true
 		}
 	]
 }

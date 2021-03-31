@@ -2,6 +2,9 @@
 
 This REDCap module provides options to adjust how records are automatically numbered.
 
+If enabled on a project where DAGs are used, this module also provides DAG specific public survey
+URLs.
+
 
 ## Project-level configuration options
 
@@ -90,6 +93,11 @@ used, this value is ignored.
 
 ### Record name suffix.
 If set, this value is appended at the end of the record name.
+
+### Counter overview
+Administrators have access to the counter overview, which is accessible via a link in the module
+configuration. This provides an interface to view and edit the record counters which determine the
+new record names.
 
 
 ## Regular expressions
