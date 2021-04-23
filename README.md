@@ -120,6 +120,26 @@ it is not intended to be a comprehensive guide.
 * `*` Matches the preceding character/class/subpattern 0 or more times.
 * `{n}` Matches the preceding character/class/subpattern n times (where n is an integer).
 * `{m,n}` Matches the preceding character/class/subpattern between m and n times (where m and n are
-  integers and m is less than n).
+  integers and m is less than n). Omit one of the numbers to set just a lower bound (i.e. `{m,}`)
+  or upper bound (i.e. `{,n}`).
+
+### Regular expression examples
+The following examples can be entered into the *Accept DAG name format* field. The indicated
+subpattern value should be entered into the *DAG format subpattern* field. Optionally, entering the
+regular expression into the *Restrict DAG name format* field will prevent DAG names which do not
+match the format from being created.
+
+If you are naming your DAGs with numeric prefixes, these regular expressions will use only the
+prefix as the DAG identifier in the record name (prefixes are separated from the rest of the DAG
+name by a space):
+* 2 digit prefix: `^([0-9]{2})[ ]` &nbsp;(subpattern=1)
+* 3 digit prefix: `^([0-9]{3})[ ]` &nbsp;(subpattern=1)
+* 4 digit prefix: `^([0-9]{4})[ ]` &nbsp;(subpattern=1)
+* Arbitrary length prefix: `^([0-9]+)[ ]` &nbsp;(subpattern=1)
+
+The following regular expression will take part of the DAG name and use it as the DAG identifier
+in the record name:
+* First word (all prior to first space): `^([^ ]+)( |$)` &nbsp;(subpattern=1)
+
 
 
