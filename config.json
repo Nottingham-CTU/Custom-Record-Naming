@@ -61,13 +61,34 @@
 				{
 					"key" : "scheme-name-type",
 					"name" : "Record name type",
-					"type" : "radio",
+					"type" : "dropdown",
 					"choices" : [
 						{ "value" : "R", "name" : "Record number only" },
+						{ "value" : "U", "name" : "User supplied only" },
+						{ "value" : "RU", "name" : "Record number - User supplied" },
+						{ "value" : "UR", "name" : "User supplied - Record number" },
 						{ "value" : "GR", "name" : "DAG - Record number" },
-						{ "value" : "RG", "name" : "Record number - DAG" }
+						{ "value" : "RG", "name" : "Record number - DAG" },
+						{ "value" : "GU", "name" : "DAG - User supplied" },
+						{ "value" : "UG", "name" : "User supplied - DAG" },
+						{ "value" : "GRU", "name" : "DAG - Record number - User supplied" },
+						{ "value" : "RGU", "name" : "Record number - DAG - User supplied" },
+						{ "value" : "GUR", "name" : "DAG - User supplied - Record number" },
+						{ "value" : "RUG", "name" : "Record number - User supplied - DAG" },
+						{ "value" : "UGR", "name" : "User supplied - DAG - Record number" },
+						{ "value" : "URG", "name" : "User supplied - Record number - DAG" }
 					],
 					"required" : true
+				},
+				{
+					"key" : "scheme-prompt-user-supplied",
+					"name" : "Prompt for user supplied name",
+					"type" : "textarea"
+				},
+				{
+					"key" : "scheme-user-supplied-format",
+					"name" : "User supplied name format (regular expression)",
+					"type" : "text"
 				},
 				{
 					"key" : "scheme-number-start",
@@ -97,6 +118,18 @@
 					"key" : "scheme-dag-section",
 					"name" : "DAG format subpattern to use in record name (enter 0 to use entire matching string)",
 					"type" : "text"
+				},
+				{
+					"key" : "scheme-name-information",
+					"name" : "It is highly recommended that you make use of at least one of prefix, separator and suffix, with different values for each arm, in order to avoid a naming clash.",
+					"type" : "descriptive",
+					"branchingLogic" : {
+						"type" : "or",
+						"conditions" : [
+							{ "field" : "numbering", "value" : "A" },
+							{ "field" : "numbering", "value" : "AG" }
+						]
+					}
 				},
 				{
 					"key" : "scheme-name-prefix",
