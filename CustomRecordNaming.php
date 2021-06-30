@@ -479,7 +479,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 
-	public function redcap_save_record( $project_id, $record, $instrument, $event_id, $group_id, $survey_hash, $response_id, $repeat_instance )
+	public function redcap_save_record( $project_id, $record, $instrument, $event_id, $group_id,
+	                                    $survey_hash, $response_id, $repeat_instance )
 	{
 		// Check that the survey is the public survey and that the submission is incomplete,
 		// and exit this function if not.
@@ -498,7 +499,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 
-	public function redcap_survey_complete( $project_id, $record, $instrument, $event_id, $group_id, $survey_hash, $response_id, $repeat_instance )
+	public function redcap_survey_complete( $project_id, $record, $instrument, $event_id, $group_id,
+	                                        $survey_hash, $response_id, $repeat_instance )
 	{
 		// Check that the survey is the public survey and exit this function if not.
 		$public_survey_hash = $this->getPublicSurveyHash( $project_id );
@@ -512,7 +514,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 
-	public function redcap_survey_page_top( $project_id, $record, $instrument, $event_id, $group_id, $survey_hash, $response_id, $repeat_instance )
+	public function redcap_survey_page_top( $project_id, $record, $instrument, $event_id, $group_id,
+	                                        $survey_hash, $response_id, $repeat_instance )
 	{
 		// Check that the survey is the public survey and exit this function if not.
 		$public_survey_hash = $this->getPublicSurveyHash( $project_id );
@@ -564,10 +567,47 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 		$dagParam = preg_replace( '/[^0-9A-Za-z]/', '', $_GET['dag'] );
 
+		// Check if a user supplied component is expected, so that the user can be prompted for it
+		// when submitting the survey.
+		$uPrompt = null;
+		if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
+		             'U' ) !== false )
+		{
+			$uPrompt = $this->getProjectSetting( 'scheme-prompt-user-supplied' )[ $armSettingID ];
+			$uRegex = $this->getProjectSetting( 'scheme-user-supplied-format' )[ $armSettingID ];
+		}
+
 ?>
 <script type="text/javascript">
   $(function(){
     $('#form').attr('action', $('#form').attr('action') + '&dag=<?php echo $dagParam; ?>' )
+<?php
+
+		if ( $uPrompt !== null )
+		{
+?>
+    var vOldDataEntrySubmit = dataEntrySubmit
+    dataEntrySubmit = function (el)
+    {
+      var vResponse = prompt( <?php echo json_encode( $uPrompt ); ?> )
+      if ( vResponse === null || vResponse == '' )
+      {
+        $(el).button('enable')
+        return
+      }
+      else if ( ! new RegExp( <?php echo json_encode( $uRegex ); ?> ).test( vResponse ) )
+      {
+        alert( 'Sorry, the value you entered was not valid.' )
+        $(el).button('enable')
+        return
+      }
+      document.cookie = 'redcap_custom_record_name=' + encodeURIComponent( vResponse ) + ';secure'
+      vOldDataEntrySubmit(el)
+    }
+<?php
+		}
+
+?>
   })
 </script>
 <?php

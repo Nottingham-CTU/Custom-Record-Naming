@@ -108,7 +108,7 @@ If set, this value is prepended at the start of the record name.
 If set, this value is inserted between each component of the record name (record number, DAG name,
 user supplied). If only one component is used, this value is ignored.
 
-### Record name suffix.
+### Record name suffix
 If set, this value is appended at the end of the record name.
 
 ### Counter overview
