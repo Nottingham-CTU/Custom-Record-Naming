@@ -797,6 +797,37 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 
+	// Given a (server-wide) arm ID, return the arm name.
+	public function getArmNameFromId( $id )
+	{
+		$res = $this->query( 'SELECT arm_name FROM redcap_events_arms' .
+		                     ' WHERE arm_id = ?', [ $id ] );
+		while ( $row = $res->fetch_row() )
+		{
+			return $row[0];
+		}
+		return null;
+	}
+
+
+
+	// Given an arm name, return the (server-wide) arm ID.
+	public function getArmIdFromName( $name )
+	{
+		if ( defined( 'PROJECT_ID' ) )
+		{
+			$res = $this->query( 'SELECT arm_id FROM redcap_events_arms' .
+			                     ' WHERE project_id = ? AND arm_name = ?', [ PROJECT_ID, $name ] );
+			while ( $row = $res->fetch_row() )
+			{
+				return $row[0];
+			}
+		}
+		return null;
+	}
+
+
+
 	// Get a DAG value for the survey query string or check that a DAG query value is valid.
 	protected function dagQueryID( $dag, $check = false )
 	{
@@ -1066,10 +1097,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( !is_array( $this->listArmIdEvent ) )
 		{
 			$this->listArmIdEvent = [];
-			$res = $this->query( 'SELECT arm_id, event_id FROM redcap_events_metadata' );
-			foreach ( $res as $item )
+			$res = $this->query( 'SELECT arm_id, event_id FROM redcap_events_metadata', [] );
+			while ( $row = $res->fetch_assoc() )
 			{
-				$this->listArmIdEvent[ $item['event_id'] ] = $item['arm_id'];
+				$this->listArmIdEvent[ $row['event_id'] ] = $row['arm_id'];
 			}
 		}
 		if ( ! isset( $this->listArmIdEvent[ $eventID ] ) )
@@ -1090,10 +1121,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( defined( 'PROJECT_ID' ) )
 			{
 				$res = $this->query( 'SELECT arm_id, arm_num FROM redcap_events_arms' .
-					                 " WHERE project_id = '" . PROJECT_ID . "'" );
-				foreach ( $res as $item )
+				                     ' WHERE project_id = ?', [ PROJECT_ID ] );
+				while ( $row = $res->fetch_assoc() )
 				{
-					$this->listArmIdNum[ $item['arm_num'] ] = $item['arm_id'];
+					$this->listArmIdNum[ $row['arm_num'] ] = $row['arm_id'];
 				}
 			}
 		}

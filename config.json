@@ -153,6 +153,12 @@
 			"name" : "<br><a href=\"#\" onclick=\"window.open('../?prefix=custom_record_naming&amp;page=counter_overview&amp;pid='+pid);return false\">Open counter overview</a>",
 			"type" : "descriptive",
 			"super-users-only" : true
+		},
+		{
+			"key" : "import-export",
+			"name" : "<a href=\"#\" onclick=\"window.open('../?prefix=custom_record_naming&amp;page=import_export&amp;pid='+pid);return false\">Import/export settings</a>",
+			"type" : "descriptive",
+			"super-users-only" : true
 		}
 	]
 }
