@@ -41,6 +41,9 @@ This defines how the project's records are numbered.
   scheme must include the DAG (i.e. *record number only* is not permitted).
 * **Per arm and DAG** will maintain a separate record counter for each *arm and DAG combination*.
   The limitations of *per arm* and *per DAG* numbering apply.
+* **Per arm (and DAG if used)** operates as *per arm* for arms where the *record name type* does not
+  include the DAG, and as *per arm and DAG* for arms where the *record name type* includes the DAG.
+  This can provide more flexibility of naming types for different arms.
 
 ### Custom naming scheme
 The following options apply to each naming scheme defined.
@@ -115,6 +118,12 @@ If set, this value is appended at the end of the record name.
 Administrators have access to the counter overview, which is accessible via a link in the module
 configuration. This provides an interface to view and edit the record counters which determine the
 new record names.
+
+### Import/export settings
+Administrators have access to the import/export settings feature, which is accessible via a link in
+the module configuration. This provides an interface to export the settings to a file, or import
+settings from a file. This may be useful when deploying a project from a development server to a
+production server.
 
 
 ## Regular expressions

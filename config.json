@@ -40,9 +40,10 @@
 			"type" : "radio",
 			"choices" : [
 				{ "value" : "P", "name" : "Project-wide (unique numbers)" },
-				{ "value" : "A", "name" : "Per arm numbering" },
-				{ "value" : "G", "name" : "Per DAG numbering" },
-				{ "value" : "AG", "name" : "Per arm and DAG numbering" }
+				{ "value" : "A", "name" : "Per arm" },
+				{ "value" : "G", "name" : "Per DAG" },
+				{ "value" : "AG", "name" : "Per arm and DAG" },
+				{ "value" : "AG?", "name" : "Per arm (and DAG if used)" }
 			],
 			"required" : true
 		},
@@ -127,7 +128,8 @@
 						"type" : "or",
 						"conditions" : [
 							{ "field" : "numbering", "value" : "A" },
-							{ "field" : "numbering", "value" : "AG" }
+							{ "field" : "numbering", "value" : "AG" },
+							{ "field" : "numbering", "value" : "AG?" }
 						]
 					}
 				},

@@ -34,17 +34,15 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$armNum = isset( $_GET['arm'] ) ? $_GET['arm'] : 1;
 			$armID = $this->getArmIdFromNum( $armNum ); // arm ID or NULL
 
-			// If record numbering is based on Data Access Groups (DAGs), then the user must be in
-			// a DAG in order to create a record.
-			if ( $armID === null ||
-			     ( $userGroup === null &&
-			       in_array( $this->getProjectSetting( 'numbering' ), [ 'G', 'AG' ] ) ) )
+			// If the arm ID cannot be determined, a record cannot be created.
+			if ( $armID === null )
 			{
 				$this->canAddRecord = false;
 			}
+
 			// Check that the settings have been completed for the chosen arm. If there is no
 			// naming scheme for the arm, then a record cannot be created.
-			else
+			if ( $this->canAddRecord )
 			{
 				$listSettingArmIDs = $this->getProjectSetting( 'scheme-arm' );
 				if ( in_array( $armID, $listSettingArmIDs ) )
@@ -64,6 +62,31 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 					$this->canAddRecord = false;
 					$this->hasSettingsForArm = false;
 				}
+			}
+
+			// Get the numbering type, and if DAG based numbering depends on the selected arm, check
+			// each arm for whether the DAG is required.
+			if ( $this->canAddRecord )
+			{
+				$numberingType = $this->getProjectSetting( 'numbering' );
+				if ( $numberingType == 'AG?' )
+				{
+					$armNeedsDAG = false;
+					if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
+					             'G' ) !== false )
+					{
+						$armNeedsDAG = true;
+					}
+				}
+			}
+
+			// If record numbering is based on Data Access Groups (DAGs), then the user must be in
+			// a DAG in order to create a record.
+			if ( $this->canAddRecord && $userGroup === null &&
+			     ( $numberingType == 'G' || $numberingType == 'AG' ||
+			       ( $numberingType == 'AG?' && $armNeedsDAG ) ) )
+			{
+				$this->canAddRecord = false;
 			}
 
 			// Get the scheme DAG format and check the current DAG matches.
@@ -904,7 +927,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 		// Determine the record number using the record counter.
 		$counterID = 'project';
-		if ( $numbering == 'A' )
+		if ( $numbering == 'A' ||
+		     ( $numbering == 'AG?' && strpos( $nameType, 'G' ) === false ) )
 		{
 			$counterID = "$armID";
 		}
@@ -912,7 +936,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		{
 			$counterID = "$groupCode";
 		}
-		elseif ( $numbering == 'AG' )
+		elseif ( $numbering == 'AG' ||
+		     ( $numbering == 'AG?' && strpos( $nameType, 'G' ) !== false ) )
 		{
 			$counterID = "$armID/$groupCode";
 		}
