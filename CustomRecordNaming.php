@@ -82,23 +82,25 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 			// If record numbering is based on Data Access Groups (DAGs), then the user must be in
 			// a DAG in order to create a record.
+			// Get the scheme DAG format and check the current DAG matches.
 			if ( $this->canAddRecord && $userGroup === null &&
 			     ( $numberingType == 'G' || $numberingType == 'AG' ||
 			       ( $numberingType == 'AG?' && $armNeedsDAG ) ) )
 			{
-				$this->canAddRecord = false;
-			}
-
-			// Get the scheme DAG format and check the current DAG matches.
-			if ( $this->canAddRecord )
-			{
-				$groupCode = $this->getGroupCode( $userGroup, $armSettingID );
-				if ( $groupCode === false )
+				if ( $userGroup === null )
 				{
-					$groupCode = '';
 					$this->canAddRecord = false;
 				}
-				$this->groupCode = $groupCode;
+				else
+				{
+					$groupCode = $this->getGroupCode( $userGroup, $armSettingID );
+					if ( $groupCode === false )
+					{
+						$groupCode = '';
+						$this->canAddRecord = false;
+					}
+					$this->groupCode = $groupCode;
+				}
 			}
 
 			// When an ID is assigned to the record (whether by this module or REDCap), tell REDCap
