@@ -31,7 +31,18 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$userGroup = $userRights[ USERID ][ 'group_id' ]; // group ID or NULL
 			$this->userGroup = $userGroup;
 
-			$armNum = isset( $_GET['arm'] ) ? $_GET['arm'] : 1;
+			$armNum = 1;
+			if ( isset( $_GET['arm'] ) )
+			{
+				$armNum = $_GET['arm'];
+			}
+			elseif ( isset( $GLOBALS['ui_state'][PROJECT_ID]['record_status_dashboard']['arm'] ) &&
+			         substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 37 ) ==
+			           'DataEntry/record_status_dashboard.php' )
+			{
+				$armNum = $GLOBALS['ui_state'][PROJECT_ID]['record_status_dashboard']['arm'];
+			}
+
 			$armID = $this->getArmIdFromNum( $armNum ); // arm ID or NULL
 
 			// If the arm ID cannot be determined, a record cannot be created.
@@ -83,7 +94,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// If record numbering is based on Data Access Groups (DAGs), then the user must be in
 			// a DAG in order to create a record.
 			// Get the scheme DAG format and check the current DAG matches.
-			if ( $this->canAddRecord && $userGroup === null &&
+			if ( $this->canAddRecord &&
 			     ( $numberingType == 'G' || $numberingType == 'AG' ||
 			       ( $numberingType == 'AG?' && $armNeedsDAG ) ) )
 			{
@@ -309,6 +320,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		       substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 37 ) ==
 		                                                'DataEntry/record_status_dashboard.php' ) )
 		{
+			$addText1 = $GLOBALS['lang']['data_entry_46'];
+			$addText2 = $GLOBALS['lang']['data_entry_46'] . ' ' . $GLOBALS['lang']['data_entry_442'];
+			$addText3 = $GLOBALS['lang']['data_entry_46'] . $GLOBALS['lang']['data_entry_99'];
+
 			// If a new record cannot be added (either because the user is not currently in a valid
 			// DAG, or because the selected arm does not have a naming scheme), then remove the
 			// 'add new record' button and replace it with a brief explanation.
@@ -320,9 +335,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
     var vListButton = $( 'button' )
     for ( var i = 0; i < vListButton.length; i++ )
     {
-      if ( vListButton[ i ].innerText.trim() == 'Add new record' ||
-           vListButton[ i ].innerText.trim() == 'Add new record for this arm' ||
-           vListButton[ i ].innerText.trim() == 'Add new record for the arm selected above' )
+      if ( vListButton[ i ].innerText.trim() == '<?php echo $addText1; ?>' ||
+           vListButton[ i ].innerText.trim() == '<?php echo $addText2; ?>' ||
+           vListButton[ i ].innerText.trim() == '<?php echo $addText3; ?>' )
       {
         vListButton[ i ].style.display = 'none'
 <?php
@@ -358,9 +373,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
     var vListButton = $( 'button' )
     for ( var i = 0; i < vListButton.length; i++ )
     {
-      if ( vListButton[ i ].innerText.trim() == 'Add new record' ||
-           vListButton[ i ].innerText.trim() == 'Add new record for this arm' ||
-           vListButton[ i ].innerText.trim() == 'Add new record for the arm selected above' )
+      if ( vListButton[ i ].innerText.trim() == '<?php echo $addText1; ?>' ||
+           vListButton[ i ].innerText.trim() == '<?php echo $addText2; ?>' ||
+           vListButton[ i ].innerText.trim() == '<?php echo $addText3; ?>' )
       {
         var vOldOnclick = vListButton[ i ].onclick
         vListButton[ i ].onclick = function()
