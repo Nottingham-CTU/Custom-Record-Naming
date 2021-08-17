@@ -1082,6 +1082,21 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	// Perform a record rename for a public survey.
 	protected function performSurveyRename( $oldRecordID, $eventID )
 	{
+		// Determine whether the project currently has records (excluding this one).
+		$hasRecords = $this->countRecords() > 1;
+
+		// If the project does not currently have any records, the module project settings which
+		// keep track of the record number(s) are reset to blank values. This ensures that numbering
+		// always starts from the beginning even if the project previously contained records (e.g.
+		// development records which were cleared when placing the project into production status).
+		if ( ! $hasRecords )
+		{
+			// Clear the record counter.
+			$this->setProjectSetting( 'project-record-counter', '{}' );
+			// Clear the last created record.
+			$this->setProjectSetting( 'project-last-record', '{}' );
+		}
+
 		$dagID = $this->dagQueryID( $_GET['dag'], true );
 		$dagID = ( $dagID === false ) ? '' : $dagID;
 		$armID = $this->getArmIdFromEventId( $eventID );
