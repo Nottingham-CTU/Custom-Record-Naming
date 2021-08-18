@@ -923,7 +923,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 	// Generate a new record name.
-	protected function generateRecordName( $armID, $armSettingID, $groupCode )
+	protected function generateRecordName( $armID, $armSettingID, $groupCode, $oldName = null )
 	{
 		// Get the scheme settings for the arm.
 		$numbering = $this->getProjectSetting( 'numbering' );
@@ -1032,7 +1032,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// in the record name, increment the record number and try again. Exit the loop if the
 			// record name is unused, or if the record number is not used (in which case the user
 			// will be taken to the existing record).
-			if ( $this->countRecords( $recordName ) > 0 && strpos( $nameType, 'R' ) !== false )
+			if ( $this->countRecords( $recordName ) > 0 && strpos( $nameType, 'R' ) !== false &&
+			     ( $oldName === null || $recordName != $oldName ) )
 			{
 				$recordCounter[ $counterID ]++;
 			}
@@ -1113,12 +1114,15 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$groupCode = $this->getGroupCode( $dagID, $armSettingID );
 		$groupCode = ( $groupCode === false ) ? '' : $groupCode;
 
-		$newRecordID = $this->generateRecordName( $armID, $armSettingID, $groupCode );
+		$newRecordID = $this->generateRecordName( $armID, $armSettingID, $groupCode, $oldRecordID );
 		if ( $dagID !== '' )
 		{
 			$this->setDAG( $oldRecordID, $dagID );
 		}
-		\DataEntry::changeRecordId( $oldRecordID, $newRecordID );
+		if ( $oldRecordID != $newRecordID )
+		{
+			\DataEntry::changeRecordId( $oldRecordID, $newRecordID );
+		}
 		return $newRecordID;
 	}
 
