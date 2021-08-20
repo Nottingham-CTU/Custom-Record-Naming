@@ -40,9 +40,10 @@
 			"type" : "radio",
 			"choices" : [
 				{ "value" : "P", "name" : "Project-wide (unique numbers)" },
-				{ "value" : "A", "name" : "Per arm numbering" },
-				{ "value" : "G", "name" : "Per DAG numbering" },
-				{ "value" : "AG", "name" : "Per arm and DAG numbering" }
+				{ "value" : "A", "name" : "Per arm" },
+				{ "value" : "G", "name" : "Per DAG" },
+				{ "value" : "AG", "name" : "Per arm and DAG" },
+				{ "value" : "AG?", "name" : "Per arm (and DAG if used)" }
 			],
 			"required" : true
 		},
@@ -61,13 +62,34 @@
 				{
 					"key" : "scheme-name-type",
 					"name" : "Record name type",
-					"type" : "radio",
+					"type" : "dropdown",
 					"choices" : [
 						{ "value" : "R", "name" : "Record number only" },
+						{ "value" : "U", "name" : "User supplied only" },
+						{ "value" : "RU", "name" : "Record number - User supplied" },
+						{ "value" : "UR", "name" : "User supplied - Record number" },
 						{ "value" : "GR", "name" : "DAG - Record number" },
-						{ "value" : "RG", "name" : "Record number - DAG" }
+						{ "value" : "RG", "name" : "Record number - DAG" },
+						{ "value" : "GU", "name" : "DAG - User supplied" },
+						{ "value" : "UG", "name" : "User supplied - DAG" },
+						{ "value" : "GRU", "name" : "DAG - Record number - User supplied" },
+						{ "value" : "RGU", "name" : "Record number - DAG - User supplied" },
+						{ "value" : "GUR", "name" : "DAG - User supplied - Record number" },
+						{ "value" : "RUG", "name" : "Record number - User supplied - DAG" },
+						{ "value" : "UGR", "name" : "User supplied - DAG - Record number" },
+						{ "value" : "URG", "name" : "User supplied - Record number - DAG" }
 					],
 					"required" : true
+				},
+				{
+					"key" : "scheme-prompt-user-supplied",
+					"name" : "Prompt for user supplied name",
+					"type" : "textarea"
+				},
+				{
+					"key" : "scheme-user-supplied-format",
+					"name" : "User supplied name format (regular expression)",
+					"type" : "text"
 				},
 				{
 					"key" : "scheme-number-start",
@@ -99,6 +121,19 @@
 					"type" : "text"
 				},
 				{
+					"key" : "scheme-name-information",
+					"name" : "It is highly recommended that you make use of at least one of prefix, separator and suffix, with different values for each arm, in order to avoid a naming clash.",
+					"type" : "descriptive",
+					"branchingLogic" : {
+						"type" : "or",
+						"conditions" : [
+							{ "field" : "numbering", "value" : "A" },
+							{ "field" : "numbering", "value" : "AG" },
+							{ "field" : "numbering", "value" : "AG?" }
+						]
+					}
+				},
+				{
 					"key" : "scheme-name-prefix",
 					"name" : "Record name prefix",
 					"type" : "text"
@@ -118,6 +153,12 @@
 		{
 			"key" : "counter-overview",
 			"name" : "<br><a href=\"#\" onclick=\"window.open('../?prefix=custom_record_naming&amp;page=counter_overview&amp;pid='+pid);return false\">Open counter overview</a>",
+			"type" : "descriptive",
+			"super-users-only" : true
+		},
+		{
+			"key" : "import-export",
+			"name" : "<a href=\"#\" onclick=\"window.open('../?prefix=custom_record_naming&amp;page=import_export&amp;pid='+pid);return false\">Import/export settings</a>",
 			"type" : "descriptive",
 			"super-users-only" : true
 		}

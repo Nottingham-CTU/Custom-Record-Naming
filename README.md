@@ -41,6 +41,9 @@ This defines how the project's records are numbered.
   scheme must include the DAG (i.e. *record number only* is not permitted).
 * **Per arm and DAG** will maintain a separate record counter for each *arm and DAG combination*.
   The limitations of *per arm* and *per DAG* numbering apply.
+* **Per arm (and DAG if used)** operates as *per arm* for arms where the *record name type* does not
+  include the DAG, and as *per arm and DAG* for arms where the *record name type* includes the DAG.
+  This can provide more flexibility of naming types for different arms.
 
 ### Custom naming scheme
 The following options apply to each naming scheme defined.
@@ -51,10 +54,27 @@ for each arm. If the project is not longitudinal or only has one arm, there will
 the list, which you should select here.
 
 ### Record name type
-This defines whether the record name is generated using the record number only (from the appropriate
-record counter), using the DAG name followed by the record number, or using the record number
-followed by the DAG name. Depending on the settings of the DAG name format and subpattern, a subset
-of the DAG name may be used instead of the entire name.
+This defines how the record name is generated and must consist of a combination of the following
+options:
+
+* Record number
+  * Picked from the appropriate record counter, in accordance with the numbering setting.
+* User supplied
+  * A value which the user will be prompted for when they create the record.
+* DAG
+  * The DAG name (or a subset of the DAG name as defined by the DAG name format and subpattern).
+  * DAG cannot be selected on its own.
+
+Select one option or a combination in the desired order. The record name will be generated using the
+components in the selected order, separated by the separator value.
+
+### Prompt for user supplied name
+The text which will be displayed to the user when they are prompted for the user supplied component
+of the record name. This is required if the user specified option is used.
+
+### User supplied name format
+This defines the format (regular expression) which the user supplied name must match in order to be
+accepted. This is required if the user specified option is used.
 
 ### Starting number
 This is the first record number that will be used. If this is not set, records will be numbered
@@ -88,16 +108,22 @@ the left by the opening parenthesis (`(`).
 If set, this value is prepended at the start of the record name.
 
 ### Record name separator
-If set, this value is inserted between the DAG name and the record number. If the DAG name is not
-used, this value is ignored.
+If set, this value is inserted between each component of the record name (record number, DAG name,
+user supplied). If only one component is used, this value is ignored.
 
-### Record name suffix.
+### Record name suffix
 If set, this value is appended at the end of the record name.
 
 ### Counter overview
 Administrators have access to the counter overview, which is accessible via a link in the module
 configuration. This provides an interface to view and edit the record counters which determine the
 new record names.
+
+### Import/export settings
+Administrators have access to the import/export settings feature, which is accessible via a link in
+the module configuration. This provides an interface to export the settings to a file, or import
+settings from a file. This may be useful when deploying a project from a development server to a
+production server.
 
 
 ## Regular expressions
