@@ -75,42 +75,38 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				}
 			}
 
-			// Get the numbering type, and if DAG based numbering depends on the selected arm, check
-			// each arm for whether the DAG is required.
+			//
 			if ( $this->canAddRecord )
 			{
+				// Get the numbering type, and check the chosen arm to see if DAG based numbering
+				// is in use or the naming scheme for the arm contains the DAG.
 				$numberingType = $this->getProjectSetting( 'numbering' );
-				if ( $numberingType == 'AG?' )
+				$armNeedsDAG = false;
+				if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
+				             'G' ) !== false )
 				{
-					$armNeedsDAG = false;
-					if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
-					             'G' ) !== false )
-					{
-						$armNeedsDAG = true;
-					}
+					$armNeedsDAG = true;
 				}
-			}
 
-			// If record numbering is based on Data Access Groups (DAGs), then the user must be in
-			// a DAG in order to create a record.
-			// Get the scheme DAG format and check the current DAG matches.
-			if ( $this->canAddRecord &&
-			     ( $numberingType == 'G' || $numberingType == 'AG' ||
-			       ( $numberingType == 'AG?' && $armNeedsDAG ) ) )
-			{
-				if ( $userGroup === null )
+				// If record numbering is based on Data Access Groups (DAGs) or the naming scheme
+				// contains the DAG, then the user must be in a DAG in order to create a record.
+				// Get the scheme DAG format and check the current DAG matches.
+				if ( $numberingType == 'G' || $numberingType == 'AG' || $armNeedsDAG )
 				{
-					$this->canAddRecord = false;
-				}
-				else
-				{
-					$groupCode = $this->getGroupCode( $userGroup, $armSettingID );
-					if ( $groupCode === false )
+					if ( $userGroup === null )
 					{
-						$groupCode = '';
 						$this->canAddRecord = false;
 					}
-					$this->groupCode = $groupCode;
+					else
+					{
+						$groupCode = $this->getGroupCode( $userGroup, $armSettingID );
+						if ( $groupCode === false )
+						{
+							$groupCode = '';
+							$this->canAddRecord = false;
+						}
+						$this->groupCode = $groupCode;
+					}
 				}
 			}
 
