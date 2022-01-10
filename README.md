@@ -5,6 +5,9 @@ This REDCap module provides options to adjust how records are automatically numb
 If enabled on a project where DAGs are used, this module also provides DAG specific public survey
 URLs.
 
+*Note: If using a public survey, the numbering may not be applied correctly when using the
+"multiple pages" question display format. Use the "all on one page" format to avoid this issue.*
+
 
 ## Project-level configuration options
 
