@@ -520,8 +520,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	{
 		// Check that the survey is the public survey and that the submission is incomplete,
 		// and exit this function if not.
-		$public_survey_hash = $this->getPublicSurveyHash( $project_id );
-		if ( $public_survey_hash === null || $survey_hash != $public_survey_hash ||
+		if ( ! in_array( $survey_hash, $this->getPublicSurveyHashes( $project_id ) ) ||
 		     json_decode( \REDCap::getData( 'json', $record, $instrument . '_complete' ),
 		                  true )[0][$instrument . '_complete'] == '2' )
 		{
@@ -529,6 +528,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 		// Perform the record rename and DAG assignment.
 		$newRecordID = $this->performSurveyRename( $record, $event_id );
+		$_SESSION['module_customrecordnaming_resubmit'] = time();
 		// Redirect to the survey link for the now established record.
 		$this->redirect( \REDCap::getSurveyLink( $newRecordID, $instrument, $event_id ) );
 	}
@@ -539,13 +539,13 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	                                        $survey_hash, $response_id, $repeat_instance )
 	{
 		// Check that the survey is the public survey and exit this function if not.
-		$public_survey_hash = $this->getPublicSurveyHash( $project_id );
-		if ( $public_survey_hash === null || $survey_hash != $public_survey_hash )
+		if ( ! in_array( $survey_hash, $this->getPublicSurveyHashes( $project_id ) ) )
 		{
 			return;
 		}
 		// Perform the record rename and DAG assignment.
 		$this->performSurveyRename( $record, $event_id );
+		$_SESSION['module_customrecordnaming_resubmit'] = time();
 	}
 
 
@@ -553,9 +553,25 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	public function redcap_survey_page_top( $project_id, $record, $instrument, $event_id, $group_id,
 	                                        $survey_hash, $response_id, $repeat_instance )
 	{
+		// If a survey resubmit is required, perform this once the page has loaded.
+		if ( $_SESSION['module_customrecordnaming_resubmit'] > time() - 60 )
+		{
+			unset( $_SESSION['module_customrecordnaming_resubmit'] );
+
+?>
+<script type="text/javascript">
+  $(function(){
+    $('body').css('display','none')
+    $('[name="submit-btn-saverecord"]').click()
+  })
+</script>
+<?php
+
+			return;
+		}
+
 		// Check that the survey is the public survey and exit this function if not.
-		$public_survey_hash = $this->getPublicSurveyHash( $project_id );
-		if ( $public_survey_hash === null || $survey_hash != $public_survey_hash ||
+		if ( ! in_array( $survey_hash, $this->getPublicSurveyHashes( $project_id ) ) ||
 		     ( ! isset( $_GET['dag'] ) && empty( \REDCap::getGroupNames() ) ) )
 		{
 			return;
@@ -860,6 +876,25 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 		}
 		return null;
+	}
+
+
+
+	public function getPublicSurveyHashes( $pid )
+	{
+		$sql = "SELECT p.hash FROM redcap_surveys s JOIN redcap_surveys_participants p " .
+		       "ON s.survey_id = p.survey_id JOIN redcap_metadata m " .
+		       "ON m.project_id = s.project_id AND m.form_name = s.form_name " .
+		       "WHERE p.participant_email IS NULL AND m.field_order = 1 AND s.project_id = ?";
+
+		$listHashes = [];
+		$result = $this->query( $sql, [ $pid ] );
+		while( $row = $result->fetch_assoc() )
+		{
+			$listHashes[] = $row['hash'];
+		}
+
+		return $listHashes;
 	}
 
 
