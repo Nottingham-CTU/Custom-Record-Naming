@@ -5,27 +5,8 @@ This REDCap module provides options to adjust how records are automatically numb
 If enabled on a project where DAGs are used, this module also provides DAG specific public survey
 URLs.
 
-*Note: If using a public survey, the numbering may not be applied correctly when using the
-"multiple pages" question display format. Use the "all on one page" format to avoid this issue.*
-
 
 ## Project-level configuration options
-
-### Restrict DAG name format
-This optional setting takes a regular expression against which all DAG names will be validated.
-The user will be presented with an error when creating or renaming a DAG with an invalid name.
-
-As this field is optional, it can be left blank. This allows users to create DAGs with any name as
-normal. If a DAG is created with a name that is not allowed by any of the record naming schemes,
-then users in that DAG will be unable to create any records.
-
-Note that it is not necessary to enclose regular expressions in delimiters.
-
-### Information about DAG name format
-Any text entered here will be displayed on the DAGs page as an information box. This can be useful
-to explain any restrictions on DAG names.
-
-HTML `<a>` (link) and `<b>` (bold) tags are supported in the information text.
 
 ### Record numbering
 This defines how the project's records are numbered.
@@ -47,39 +28,62 @@ This defines how the project's records are numbered.
 * **Per arm (and DAG if used)** operates as *per arm* for arms where the *record name type* does not
   include the DAG, and as *per arm and DAG* for arms where the *record name type* includes the DAG.
   This can provide more flexibility of naming types for different arms.
+* **Per arm (and field value if used)** will maintain a separate record counter for each arm, and
+  for each field value within each arm where field value lookup is used.
+* **Per arm (and DAG/field value if used)** will maintain a separate record counter for each arm,
+  and for each DAG and each field value within each arm where the DAG and field value lookup are
+  used, respectively.
 
-### Custom naming scheme
-The following options apply to each naming scheme defined.
+### Restrict DAG name format
+If the DAG name format is restricted, the user will be presented with an error when creating or
+renaming a DAG with an invalid name. This field is optional and can be left blank, which allows
+users to create DAGs with any name as normal. If a DAG is created with a name that is not allowed by
+any of the record naming schemes, then users in that DAG will be unable to create any records.
 
-### Target arm
-This is the arm of the project to which the naming scheme applies. You should define a naming scheme
-for each arm. If the project is not longitudinal or only has one arm, there will be only one arm in
-the list, which you should select here.
+Either select a format restriction from the drop-down list, or choose *Custom* and enter a regular
+expression. Note that it is not necessary to enclose regular expressions in delimiters.
+
+### Information about DAG name format
+Any text entered here will be displayed on the DAGs page as an information box. This can be useful
+to explain any restrictions on DAG names.
+
+HTML `<a>` (link) and `<b>` (bold) tags are supported in the information text.
+
+### Per-arm settings
+The following options can be applied to each arm in the project, or to all arms at once by setting
+the options for the first arm and using the *apply to all arms* checkbox.
 
 ### Record name type
 This defines how the record name is generated and must consist of a combination of the following
 options:
 
-* Record number
-  * Picked from the appropriate record counter, in accordance with the numbering setting.
-* User supplied
-  * A value which the user will be prompted for when they create the record.
-* DAG
-  * The DAG name (or a subset of the DAG name as defined by the DAG name format and subpattern).
-  * DAG cannot be selected on its own.
+* **Record number**<br>
+  Picked from the appropriate record counter, in accordance with the numbering setting.
+* **DAG**<br>
+  The DAG name (or a subset of the DAG name as defined by the DAG name format and subpattern).<br>
+  *Note that if the DAG is used without any other options, only one record per DAG can be created.*
+* **User supplied**<br>
+  A value which the user will be prompted for when they create the record.
+* **Timestamp**<br>
+  The current date/time, according to the specified format and timezone.
+* **Field value lookup**<br>
+  A field value from an existing record in the project, which the user will be prompted for when
+  they create the record.
 
 Select one option or a combination in the desired order. The record name will be generated using the
 components in the selected order, separated by the separator value.
 
-### Prompt for user supplied name
-The text which will be displayed to the user when they are prompted for the user supplied component
-of the record name. This is required if the user specified option is used.
+### Record name prefix
+If set, this value is prepended at the start of the record name.
 
-### User supplied name format
-This defines the format (regular expression) which the user supplied name must match in order to be
-accepted. This is required if the user specified option is used.
+### Record name separator
+If set, this value is inserted between each component of the record name (record number, DAG name,
+user supplied). If only one component is used, this value is ignored.
 
-### Starting number
+### Record name suffix
+If set, this value is appended at the end of the record name.
+
+### First record number
 This is the first record number that will be used. If this is not set, records will be numbered
 starting from 1.
 
@@ -91,9 +95,11 @@ This allows the record number to be a fixed length. The number will be left padd
 make it the correct length. This applies only to the record number portion of the record name,
 adding the DAG name, prefix, separator and suffix will increase the record name length.
 
-### Accept DAG name format / DAG format subpattern
+### Accept DAG name format
 This defines the DAG name format which can be used for records in this arm. Users in a DAG with a
-name not matching this regular expression (or not in a DAG at all) cannot add records to the arm.
+name not matching the selected format (or not in a DAG at all) cannot add records to the arm.
+Either select a format from the drop-down list, or choose *Custom* and enter a regular expression
+and subpattern number. Note that it is not necessary to enclose regular expressions in delimiters.
 
 The portion of the DAG name which matches the regular expression will be used in the record name.
 The DAG format subpattern option must be set to an integer can be used to further narrow down the
@@ -107,26 +113,49 @@ If the DAG format subpattern is set to `1` or greater, then only the portion of 
 is denoted by the corresponding set of parentheses (`(`,`)`) is used. Subpatterns are counted from
 the left by the opening parenthesis (`(`).
 
-### Record name prefix
-If set, this value is prepended at the start of the record name.
+### Prompt for user supplied name
+The text which will be displayed to the user when they are prompted for the user supplied component
+of the record name.
 
-### Record name separator
-If set, this value is inserted between each component of the record name (record number, DAG name,
-user supplied). If only one component is used, this value is ignored.
+### User supplied name format
+This defines the format (regular expression) which the user supplied name must match in order to be
+accepted.
 
-### Record name suffix
-If set, this value is appended at the end of the record name.
+### Timestamp format
+This defines the format of the timestamp. This uses the
+[PHP date/time format](https://www.php.net/manual/en/datetime.format.php).
+
+### Timezone for timestamp
+The timezone which will be used when generating the timestamp. This can either be *UTC* or the
+*Server timezone*.
+
+### Prompt for field lookup
+The text which will be displayed to the user when they are prompted to select the record for the
+field value lookup.
+
+### Lookup value from field
+This is the project field which will be used to supply the value which will be used in the record
+name of the new record.
+
+### Lookup description from field
+This is the project field which will be used to supply the descriptions of the existing records
+when the user is prompted to select the record for the field value lookup.
+
+### Filter records by logic
+Only the records which match the filter logic will be listed when the user is prompted to select the
+record for the field value lookup.
+
+## Administrative options
+Administrators have access to the following features, which are accessible via links in the module
+configuration.
 
 ### Counter overview
-Administrators have access to the counter overview, which is accessible via a link in the module
-configuration. This provides an interface to view and edit the record counters which determine the
-new record names.
+This provides an interface to view and edit the record counters which determine the new record
+names.
 
 ### Import/export settings
-Administrators have access to the import/export settings feature, which is accessible via a link in
-the module configuration. This provides an interface to export the settings to a file, or import
-settings from a file. This may be useful when deploying a project from a development server to a
-production server.
+This provides an interface to export the settings to a file, or import settings from a file. This
+may be useful when deploying a project from a development server to a production server.
 
 
 ## Regular expressions
@@ -151,24 +180,6 @@ it is not intended to be a comprehensive guide.
 * `{m,n}` Matches the preceding character/class/subpattern between m and n times (where m and n are
   integers and m is less than n). Omit one of the numbers to set just a lower bound (i.e. `{m,}`)
   or upper bound (i.e. `{,n}`).
-
-### Regular expression examples
-The following examples can be entered into the *Accept DAG name format* field. The indicated
-subpattern value should be entered into the *DAG format subpattern* field. Optionally, entering the
-regular expression into the *Restrict DAG name format* field will prevent DAG names which do not
-match the format from being created.
-
-If you are naming your DAGs with numeric prefixes, these regular expressions will use only the
-prefix as the DAG identifier in the record name (prefixes are separated from the rest of the DAG
-name by a space):
-* 2 digit prefix: `^([0-9]{2})[ ]` &nbsp;(subpattern=1)
-* 3 digit prefix: `^([0-9]{3})[ ]` &nbsp;(subpattern=1)
-* 4 digit prefix: `^([0-9]{4})[ ]` &nbsp;(subpattern=1)
-* Arbitrary length prefix: `^([0-9]+)[ ]` &nbsp;(subpattern=1)
-
-The following regular expression will take part of the DAG name and use it as the DAG identifier
-in the record name:
-* First word (all prior to first space): `^([^ ]+)( |$)` &nbsp;(subpattern=1)
 
 
 
