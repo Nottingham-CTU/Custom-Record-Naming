@@ -4,16 +4,18 @@
  */
 
 
-if ( ! $module->framework->getUser()->isSuperUser() )
+if ( ! $module->getUser()->isSuperUser() )
 {
 	exit;
 }
 
 // Define setting names for export/import.
-$globalSettingNames = [ 'dag-format', 'dag-format-notice', 'numbering' ];
-$schemeSettingNames = [ 'name-type', 'prompt-user-supplied', 'user-supplied-format', 'number-start',
-                        'number-pad', 'dag-format', 'dag-section', 'name-prefix', 'name-separator',
-                        'name-suffix' ];
+$globalSettingNames = [ 'numbering', 'dag-format', 'dag-format-notice' ];
+$schemeSettingNames = [ 'name-type', 'name-prefix', 'name-separator', 'name-suffix', 'number-start',
+                        'number-pad', 'dag-format', 'dag-section', 'prompt-user-supplied',
+                        'user-supplied-format', 'timestamp-format', 'timestamp-tz',
+                        'prompt-field-lookup', 'field-lookup-value', 'field-lookup-desc',
+                        'field-lookup-filter' ];
 
 
 // Export the data.
