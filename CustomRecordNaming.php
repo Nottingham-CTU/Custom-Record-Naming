@@ -321,13 +321,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$dagFormatNotice = addslashes( $dagFormatNotice );
 
 ?>
-    var vListTable = $( '#dags_table tr' )
-    for ( var i = 0; i < vListTable.length; i++ )
-    {
-      vListTable[ i ].children[ 4 ].style.display = 'none'
-    }
-    $( '#dags_table' )[ 0 ].style.width = '638px'
-    $( '<div class="yellow"><?php echo $dagFormatNotice; ?></div>' ).insertBefore( '#group_table' )
+    $( '<div class="yellow" style="max-width:900px"><?php echo $dagFormatNotice; ?></div>'
+                                                                    ).insertBefore( '#group_table' )
 <?php
 
 			}
