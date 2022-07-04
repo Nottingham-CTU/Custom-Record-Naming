@@ -125,7 +125,11 @@ function makeSettingRow( $field, $name, $type, $choices, $value )
 	{
 		$row .= ' data-type="F"';
 	}
-	$row .= '><td style="width:0px;white-space:nowrap;padding:10px 15px 10px 0px">' .
+	elseif ( $field == 'scheme-name-separator[]' )
+	{
+		$row .= ' data-separator="1"';
+	}
+	$row .= '><td style="width:0px;min-width:25%;white-space:nowrap;padding:10px 15px 10px 0px">' .
 	       ( strlen( $name ) > 60 ? str_replace( '(', '<br>(', $name ) : $name ) .
 	       '</td><td style="padding:10px 0px 10px 0px">';
 	if ( $type == 'text' )
@@ -349,6 +353,17 @@ $(function()
     {
       vBranchedFields.find('.choose-dag-format').change()
     }
+    $(vList).closest('table').find('[data-separator]').each( function()
+    {
+      if ( vValue.length > 1 )
+      {
+        $(this).css('display','')
+      }
+      else
+      {
+        $(this).css('display','none')
+      }
+    })
   }
   $('head').append('<style type="text/css">.multiselect{margin-bottom:3px;padding:0px}' +
                    '.multiselect li{display:inline-block;cursor:grab;border:solid 1px #000;' +

@@ -21,7 +21,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	// Always hide the button for the default REDCap module configuration interface.
 	function redcap_module_configure_button_display()
 	{
-		return null;
+		return ( $this->getProjectId() === null ) ? true : null;
 	}
 
 

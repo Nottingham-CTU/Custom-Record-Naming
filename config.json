@@ -142,12 +142,12 @@
 				},
 				{
 					"key" : "scheme-field-lookup-value",
-					"name" : "Lookup value from field",
+					"name" : "Lookup value from field (used to name record)",
 					"type" : "text"
 				},
 				{
 					"key" : "scheme-field-lookup-desc",
-					"name" : "Lookup description from field",
+					"name" : "Lookup description from field (used for dropdown in user prompt)",
 					"type" : "text"
 				},
 				{
