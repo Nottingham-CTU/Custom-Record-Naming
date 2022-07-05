@@ -123,7 +123,7 @@
 				},
 				{
 					"key" : "scheme-timestamp-format",
-					"name" : "Timestamp format (<a href=\"https://www.php.net/manual/en/datetime.format.php\">PHP date/time format</a>)",
+					"name" : "Timestamp format (<a href=\"https://www.php.net/manual/en/datetime.format.php\" target=\"_blank\">PHP date/time format</a>)",
 					"type" : "text"
 				},
 				{

@@ -9,6 +9,7 @@ $listRecordNameTypes = $module->getListRecordNameTypes();
 
 $listArms = $module->getArms();
 
+// Extract the module settings from the config.json file.
 $projectSettingsConfig = $module->getConfig()['project-settings'];
 $listProjectSettings = [];
 $listArmSettings = [];
@@ -98,6 +99,7 @@ if ( ! empty( $_POST ) )
 	exit;
 }
 
+// Function to make a setting field for the configuration page.
 function makeSettingRow( $field, $name, $type, $choices, $value )
 {
 	$row = '<tr';
@@ -184,6 +186,22 @@ function makeSettingRow( $field, $name, $type, $choices, $value )
 	return $row;
 }
 
+// Get the arms with existing records.
+$queryNonEmptyArms = $module->query( 'SELECT arm_id, count(*) AS num ' .
+                                     'FROM redcap_record_list AS rl ' .
+                                     'JOIN redcap_events_arms AS ea ' .
+                                     'ON rl.project_id = ea.project_id AND rl.arm = ea.arm_num ' .
+                                     'WHERE rl.project_id = ? GROUP BY arm_id',
+                                     [ $module->getProjectId() ] );
+$listNonEmptyArms = [];
+while ( $res = $queryNonEmptyArms->fetch_assoc() )
+{
+	if ( $res['num'] > 0 )
+	{
+		$listNonEmptyArms[ $res['arm_id'] ] = $res['num'];
+	}
+}
+
 // Display the project header
 require_once APP_PATH_DOCROOT . 'ProjectGeneral/header.php';
 
@@ -195,23 +213,30 @@ require_once APP_PATH_DOCROOT . 'ProjectGeneral/header.php';
   <ul>
    <li><a href="#modsettings_general">General</a></li>
 <?php
+
 foreach ( $listArms as $armID => $armName )
 {
+
 ?>
    <li>
     <a href="#modsettings_arm<?php echo $armID; ?>"><?php echo htmlspecialchars( $armName ); ?></a>
    </li>
 <?php
+
 }
+
 ?>
   </ul>
   <div id="modsettings_general">
    <table style="width:100%">
 <?php
+
+// Output general settings.
 foreach ( $listProjectSettings as $fieldName => $setting )
 {
 	if ( $fieldName == 'dag-format' )
 	{
+		// Provide a dropdown for DAG format restriction to auto-fill regex field.
 		echo '<tr><td style="padding:10px 0px 10px 0px">Restrict DAG name format</td>' .
 		     '<td style="padding:10px 0px 10px 0px"><select class="choose-general-dag-format">' .
 		     '<option value=""></option><option value="^[0-9]+[^0-9]">Numeric prefix</option>' .
@@ -233,10 +258,13 @@ foreach ( $listProjectSettings as $fieldName => $setting )
 	echo makeSettingRow( $fieldName, $setting['name'], $setting['type'],
 	                     $setting['choices'], $setting['value'] );
 }
+
 ?>
    </table>
   </div>
 <?php
+
+// Output arm settings.
 $firstArm = true;
 foreach ( $listArms as $armID => $armName )
 {
@@ -245,10 +273,28 @@ foreach ( $listArms as $armID => $armName )
 	{
 		$valueIndex = array_search( $armID, $listArmSettings['scheme-arm']['value'] );
 	}
+
 ?>
   <div id="modsettings_arm<?php echo $armID; ?>">
    <input type="hidden" name="scheme-settings[]" value="true">
    <input type="hidden" name="scheme-arm[]" value="<?php echo $armID; ?>">
+<?php
+
+	// Display a warning if the arm already contains records.
+	if ( isset( $listNonEmptyArms[ $armID ] ) )
+	{
+
+?>
+   <div class="yellow" style="max-width:100%">
+    <img src="<?php echo APP_PATH_WEBROOT; ?>/Resources/images/exclamation_orange.png">
+    This arm already contains <?php echo $listNonEmptyArms[ $armID ]; ?> record<?php
+		echo $listNonEmptyArms == 1 ? '' : 's'; ?>.
+   </div>
+<?php
+
+	}
+
+?>
    <table style="width:100%">
 <?php
 	foreach ( $listArmSettings as $fieldName => $setting )
@@ -261,15 +307,18 @@ foreach ( $listArms as $armID => $armName )
 		$fieldChoices = $setting['choices'];
 		if ( $fieldName == 'scheme-name-type' )
 		{
+			// The scheme name type is a drag-and-drop 'multiselect' field.
 			$fieldType = 'multiselect';
 			$fieldChoices = $listRecordNameTypes;
 		}
 		elseif ( $fieldName == 'scheme-number-start' || $fieldName == 'scheme-dag-section' )
 		{
+			// Numeric fields have a 'number' type.
 			$fieldType = 'number';
 		}
 		elseif ( $fieldName == 'scheme-name-prefix' )
 		{
+			// Add a note before the prefix, separator and suffix fields.
 			echo '<tr><td></td><td style="font-size:x-small">If using per-arm numbering, it is ',
 			     'highly recommended that you make use of at least one of prefix, separator and ',
 			     'suffix, with different values for each arm, in order to avoid a naming clash.',
@@ -277,6 +326,7 @@ foreach ( $listArms as $armID => $armName )
 		}
 		elseif ( $fieldName == 'scheme-dag-format' )
 		{
+			// Provide a dropdown for DAG format to auto-fill regex field.
 			echo '<tr data-type="G"><td style="padding:10px 0px 10px 0px">Accept DAG name format' .
 			     '</td><td style="padding:10px 0px 10px 0px"><select class="choose-dag-format">' .
 			     '<option value=""></option><option value="^([^ ]+)[ ]">Use all up to first space' .
@@ -286,6 +336,7 @@ foreach ( $listArms as $armID => $armName )
 		}
 		elseif ( $fieldName == 'scheme-timestamp-tz' )
 		{
+			// For the server timestamp option, show the current server timestamp.
 			$fieldChoices['S'] .= ' (' . date('e') . ')';
 		}
 		$value = ( $valueIndex === false ? '' : $setting['value'][ $valueIndex ] );
@@ -294,7 +345,13 @@ foreach ( $listArms as $armID => $armName )
 	if ( $firstArm )
 	{
 		echo '<tr><td style="padding:10px 0px 10px 0px">Apply to all arms</td><td style="padding:' .
-		     '10px 0px 10px 0px"><input type="checkbox" name="apply_all_arms" value="1"></td></tr>';
+		     '10px 0px 10px 0px"><input type="checkbox" name="apply_all_arms" value="1">';
+		if ( ! empty( $listNonEmptyArms ) )
+		{
+			echo ' &nbsp;&nbsp;<span class="yellow"><img src="', APP_PATH_WEBROOT, '/Resources',
+			     '/images/exclamation_orange.png"> Some arms already contain records.</span>';
+		}
+		echo '</td></tr>';
 		$firstArm = false;
 	}
 ?>
@@ -363,7 +420,9 @@ $(function()
   }
   $('head').append('<style type="text/css">.multiselect{margin-bottom:3px;padding:0px}' +
                    '.multiselect li{display:inline-block;cursor:grab;border:solid 1px #000;' +
-                   'background:#eee;margin-right:5px;padding:4px;font-size:small}</style>')
+                   'background:#eee;margin-right:5px;padding:4px;font-size:small}' +
+                   '.ui-tabs .ui-tabs-nav li.ui-tabs-active .ui-tabs-anchor' +
+                   '{cursor:default;font-weight:bold;color:#000}</style>')
   $('#modsettings').tabs()
   $('.multiselect').sortable({"update":function(){ vFuncUpdateNameType($(this)) }})
   $('.multiselect :checkbox').click(function(){ vFuncUpdateNameType($(this).closest('ul')) })
@@ -482,6 +541,26 @@ $(function()
               'json' )
     }
   })
+<?php
+if ( $module->getProjectStatus() != 'DEV' ) // Project placed into production status.
+{
+?>
+  $('<div>This project is in production. It is recommended that you do not change naming schemes ' +
+    'for arms which already contain records.</div>').dialog(
+  {
+    buttons:
+    {
+      "Go Back" : function() { window.history.back() },
+      "Continue" : function() { $(this).dialog('close') }
+    },
+    modal: true,
+    open: function() { $('.ui-dialog-titlebar-close',$(this).closest('.ui-dialog')).hide() },
+    title: 'Warning',
+    width: 400
+  })
+<?php
+}
+?>
 })
 </script>
 <?php
