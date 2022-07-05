@@ -5,11 +5,7 @@ if ( ! $module->canConfigure() )
 	exit;
 }
 
-$listRecordNameTypes = [ 'R' => 'Record number',
-                         'G' => 'DAG',
-                         'U' => 'User supplied',
-                         'T' => 'Timestamp',
-                         'F' => 'Field value lookup' ];
+$listRecordNameTypes = $module->getListRecordNameTypes();
 
 $listArms = $module->getArms();
 

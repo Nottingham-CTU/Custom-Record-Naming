@@ -9,6 +9,8 @@ if ( ! $module->getUser()->isSuperUser() )
 	exit;
 }
 
+$listRecordNameTypes = $module->getListRecordNameTypes();
+
 // Define setting names for export/import.
 $globalSettingNames = [ 'numbering', 'dag-format', 'dag-format-notice' ];
 $schemeSettingNames = [ 'name-type', 'name-prefix', 'name-separator', 'name-suffix', 'number-start',
@@ -66,6 +68,10 @@ if ( isset( $_FILES['import'] ) )
 		{
 			// Get currently configured arms.
 			$arms = $module->getProjectSetting( 'scheme-arm' );
+			if ( $arms === null )
+			{
+				$arms = [];
+			}
 			// Get project setting metadata, and create lookup arrays of the setting labels and
 			// (for multiple choice options) the choice labels.
 			$projectSettings = $module->getConfig()['project-settings'];
@@ -80,7 +86,8 @@ if ( isset( $_FILES['import'] ) )
 				}
 				elseif ( $projectSettings[$i]['type'] != 'descriptive' )
 				{
-					$settingNames[ $projectSettings[$i]['key'] ] = $projectSettings[$i]['name'];
+					$settingNames[ $projectSettings[$i]['key'] ] =
+						preg_replace( '/<[^>]+>/', '', $projectSettings[$i]['name'] );
 					if ( isset( $projectSettings[$i]['choices'] ) )
 					{
 						foreach ( $projectSettings[$i]['choices'] as $choice )
@@ -109,17 +116,40 @@ if ( isset( $_FILES['import'] ) )
 				{
 					$settingCompare[$armName][$setting]['old'] =
 						$module->getProjectSetting( "scheme-$setting" )[$i];
+					if ( $setting == 'name-type' )
+					{
+						$settingCompare[$armName][$setting]['old'] =
+							array_reduce( str_split( $settingCompare[$armName][$setting]['old'] ),
+							              function ( $c, $i ) use ( $listRecordNameTypes )
+							              {
+							                  if ( $c != '' ) $c .= ', ';
+							                  $c .= $listRecordNameTypes[ $i ];
+							                  return $c;
+							              }, '' );
+					}
 				}
 			}
+			$listArmExist = [];
 			foreach ( $importData['scheme'] as $armName => $armData )
 			{
-				if ( $module->getArmIdFromName( $armName ) === null )
+				if ( $module->getArmIdFromName( $armName ) !== null )
 				{
-					$armName .= ' (arm does not exist in project)';
+					$listArmExist[] = $armName;
 				}
 				foreach ( $schemeSettingNames as $setting )
 				{
 					$settingCompare[$armName][$setting]['new'] = $armData[$setting];
+					if ( $setting == 'name-type' )
+					{
+						$settingCompare[$armName][$setting]['new'] =
+							array_reduce( str_split( $settingCompare[$armName][$setting]['new'] ),
+							              function ( $c, $i ) use ( $listRecordNameTypes )
+							              {
+							                  if ( $c != '' ) $c .= ', ';
+							                  $c .= $listRecordNameTypes[ $i ];
+							                  return $c;
+							              }, '' );
+					}
 				}
 			}
 			// Indicate success for this stage of the import.
@@ -203,11 +233,16 @@ if ( $importConfirm )
 <?php
 	foreach ( $settingCompare as $armName => $armData )
 	{
+		$armExists = ( $armName == '' || in_array( $armName, $listArmExist ) );
 		if ( $armName != '' )
 		{
 ?>
  <tr>
-  <th colspan="3"><?php echo htmlspecialchars( $armName ); ?></th>
+  <th colspan="3"><?php
+			echo htmlspecialchars( $armName ),
+			     ( $armExists
+			       ? '' : ' <span style="color:#c00">(arm does not exist in project)</span>' );
+?></th>
  </tr>
 <?php
 		}
@@ -217,15 +252,17 @@ if ( $importConfirm )
 			{
 				$setting = "scheme-$setting";
 			}
+			$oldValue = $settingValues[$setting][$values['old']] ?? $values['old'];
+			$newValue = $settingValues[$setting][$values['new']] ?? $values['new'];
 ?>
- <tr>
+ <tr<?php echo $armExists && $oldValue != $newValue ? ' class="importChangedRow"' : ''; ?>>
   <td><?php
 			echo htmlspecialchars( $settingNames[$setting] ); ?></td>
   <td><?php
-			echo htmlspecialchars( $settingValues[$setting][$values['old']] ?? $values['old'] );
+			echo htmlspecialchars( $oldValue );
 ?></td>
   <td><?php
-			echo htmlspecialchars( $settingValues[$setting][$values['new']] ?? $values['new'] );
+			echo htmlspecialchars( $newValue );
 ?></td>
  </tr>
 <?php
@@ -242,7 +279,8 @@ if ( $importConfirm )
 </form>
 <script type="text/javascript">
 $('head').append('<style type="text/css">#importCompareTable th, #importCompareTable td ' +
-                 '{border:solid 1px #000;padding:3px}</style>')
+                 '{border:solid 1px #000;padding:3px} #importCompareTable th {background:#ddd} ' +
+                 '#importCompareTable .importChangedRow {background:#dfe}</style>')
 </script>
 <?php
 
@@ -261,10 +299,18 @@ else
 
 	}
 
+	if ( $module->getProjectSetting( 'scheme-arm' ) !== null )
+	{
+		// Only show export link if settings exist.
 ?>
 <p><a href="./?<?php echo htmlspecialchars( $_SERVER['QUERY_STRING'] );
 ?>&amp;export=1">Export Settings</a></p>
 <p>&nbsp;</p>
+<?php
+
+	}
+
+?>
 <form method="post" enctype="multipart/form-data">
  <p>Import Settings:&nbsp; <input type="file" name="import"><input type="submit" value="Import"></p>
 </form>

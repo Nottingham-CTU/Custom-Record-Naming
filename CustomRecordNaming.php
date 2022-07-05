@@ -781,6 +781,18 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 
+	// Get the list of record name types.
+	public function getListRecordNameTypes()
+	{
+		return [ 'R' => 'Record number',
+                 'G' => 'DAG',
+                 'U' => 'User supplied',
+                 'T' => 'Timestamp',
+                 'F' => 'Field value lookup' ];
+	}
+
+
+
 	// Validation for the module settings.
 	public function validateSettings( $settings )
 	{
