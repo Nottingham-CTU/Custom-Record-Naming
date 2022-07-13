@@ -7,6 +7,24 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 {
 
 
+	// Determine whether link to module configuration is shown.
+	function redcap_module_link_check_display( $project_id, $link )
+	{
+		if ( $this->canConfigure() )
+		{
+			return $link;
+		}
+		return null;
+	}
+
+
+	// Always hide the button for the default REDCap module configuration interface.
+	function redcap_module_configure_button_display()
+	{
+		return ( $this->getProjectId() === null ) ? true : null;
+	}
+
+
 
 	function redcap_every_page_before_render( $project_id )
 	{
@@ -19,6 +37,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$this->hasSettingsForArm = true;
 		$this->userSuppliedComponentPrompt = null;
 		$this->userSuppliedComponentRegex = null;
+		$this->fieldLookupPrompt = null;
+		$this->fieldLookupList = null;
 		$this->userGroup = null;
 		$this->groupCode = null;
 
@@ -56,7 +76,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( $this->canAddRecord )
 			{
 				$listSettingArmIDs = $this->getProjectSetting( 'scheme-arm' );
-				if ( in_array( $armID, $listSettingArmIDs ) )
+				if ( is_array( $listSettingArmIDs ) && in_array( $armID, $listSettingArmIDs ) )
 				{
 					$armSettingID = array_search( $armID, $listSettingArmIDs );
 					if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
@@ -67,6 +87,17 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 						$this->userSuppliedComponentRegex =
 							$this->getProjectSetting( 'scheme-user-supplied-format' )[ $armSettingID ];
 					}
+					if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
+					             'F' ) !== false )
+					{
+						$this->fieldLookupPrompt =
+							$this->getProjectSetting( 'scheme-prompt-field-lookup' )[ $armSettingID ];
+						$this->fieldLookupList =
+							$this->getFieldLookupList(
+								$this->getProjectSetting( 'scheme-field-lookup-value' )[ $armSettingID ],
+								$this->getProjectSetting( 'scheme-field-lookup-desc' )[ $armSettingID ],
+								$this->getProjectSetting( 'scheme-field-lookup-filter' )[ $armSettingID ] );
+					}
 				}
 				else
 				{
@@ -75,7 +106,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				}
 			}
 
-			//
+			// Check that a record name can be generated given the name type.
 			if ( $this->canAddRecord )
 			{
 				// Get the numbering type, and check the chosen arm to see if DAG based numbering
@@ -290,13 +321,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$dagFormatNotice = addslashes( $dagFormatNotice );
 
 ?>
-    var vListTable = $( '#dags_table tr' )
-    for ( var i = 0; i < vListTable.length; i++ )
-    {
-      vListTable[ i ].children[ 4 ].style.display = 'none'
-    }
-    $( '#dags_table' )[ 0 ].style.width = '638px'
-    $( '<div class="yellow"><?php echo $dagFormatNotice; ?></div>' ).insertBefore( '#group_table' )
+    $( '<div class="yellow" style="max-width:900px"><?php echo $dagFormatNotice; ?></div>'
+                                                                    ).insertBefore( '#group_table' )
 <?php
 
 			}
@@ -361,7 +387,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 			// If the record name contains a user supplied component, then ensure that the user is
 			// prompted for it when they click the 'add new record' button.
-			elseif ( $this->userSuppliedComponentPrompt !== null )
+			elseif ( $this->userSuppliedComponentPrompt !== null ||
+			         $this->fieldLookupPrompt !== null )
 			{
 ?>
 <script type="text/javascript">
@@ -374,23 +401,13 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
            vListButton[ i ].innerText.trim() == '<?php echo $addText3; ?>' )
       {
         var vOldOnclick = vListButton[ i ].onclick
-        vListButton[ i ].onclick = function()
-        {
-          var vResponse = prompt( <?php echo json_encode( $this->userSuppliedComponentPrompt ); ?> )
-          if ( vResponse === null || vResponse == '' )
-          {
-            return
-          }
-          else if ( ! new RegExp( <?php echo json_encode( $this->userSuppliedComponentRegex );
-										?> ).test( vResponse ) )
-          {
-            alert( 'Sorry, the value you entered was not valid.' )
-            return
-          }
-          document.cookie = 'redcap_custom_record_name=' + encodeURIComponent( vResponse ) +
-                            ';secure'
-          vOldOnclick()
-        }
+        vListButton[ i ].onclick = <?php
+				echo $this->makeUserPromptJS( '', 'vOldOnclick()', '',
+				                              $this->userSuppliedComponentPrompt,
+				                              $this->userSuppliedComponentRegex,
+				                              $this->fieldLookupPrompt,
+				                              $this->fieldLookupList, false ); ?>
+
         break
       }
     }
@@ -461,6 +478,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$listDAGs = \REDCap::getGroupNames( false );
 			if ( ! empty( $listDAGs ) )
 			{
+				$qrDescText = str_replace( ["\r", "\n"], ' ',
+				                           addslashes( $GLOBALS['lang']['survey_632'] ) );
 ?>
 <script type="text/javascript">
   $(function()
@@ -468,7 +487,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
     if ( $('#longurl').length )
     {
       var vBaseURL = $('#longurl').val()
+      var vURLCode = vBaseURL.replace('<?php echo addslashes( APP_PATH_SURVEY_FULL ); ?>?s=','')
       var vInsertAfter = $('#longurl').parent()
+      var vQRDialog = $('<div><p><?php echo $qrDescText; ?></p>' +
+                        '<p style="text-align:center"></p></div>')
       var vFuncSelect = function(elem)
       {
         var vSel = window.getSelection()
@@ -477,23 +499,54 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
         vSel.removeAllRanges()
         vSel.addRange(vRange)
       }
-      var vURLTable = $('<table><tr><th style="border:solid #000 1px">DAG</th>' +
-                        '<th style="border:solid #000 1px">Public Survey URL</th></tr></table>')
-      var vURLTR = $('<tr><td style="border:solid #000 1px"><i>none</i></td>' +
-                     '<td style="border:solid #000 1px">' + vBaseURL + '&amp;dag=<?php
-				echo $this->dagQueryID( '' ); ?></td></tr>')
+      var vFuncQRClick = function(elem)
+      {
+        var vQR = vQRDialog.find('p').eq(1)
+        vQR.html('')
+        vQR.append($('<img>').attr('src','<?php echo addslashes( APP_PATH_WEBROOT ); ?>Surveys/' +
+                                         'survey_link_qrcode.php?pid=<?php echo $_GET['pid']; ?>' +
+                                         '&hash=' + elem.dataset.qr))
+        vQRDialog.dialog(
+        {
+          autoOpen:true,
+          height:380,
+          modal:true,
+          resizable:false,
+          title:'<?php echo addslashes( $GLOBALS['lang']['survey_620'] ); ?>',
+          width:420
+        })
+      }
+      var vURLTable = $('<table><tr><th style="border:solid #000 1px;padding:3px">DAG</th>' +
+                        '<th style="border:solid #000 1px;padding:3px">Public Survey URL</th>' +
+                        '<th style="border:solid #000 1px;padding:3px"><img ' +
+                        'src="<?php echo APP_PATH_WEBROOT; ?>Resources/images/qrcode.png" ' +
+                        'style="vertical-align:middle"> QR Code</th></tr></table>')
+<?php
+				$dagURL = $this->dagQueryID( '' );
+?>
+      var vURLTR = $('<tr><td style="border:solid #000 1px;padding:3px"><i>none</i></td>' +
+                     '<td style="border:solid #000 1px;padding:3px">' + vBaseURL + '&amp;dag=' +
+                     '<?php echo addslashes( htmlspecialchars( $dagURL ) ); ?></td>' +
+                     '<td style="border:solid #000 1px;padding:3px;text-align:center">' +
+                     '<a href="#" data-qr="' + vURLCode + '%26dag%3D' +
+                     '<?php echo addslashes( htmlspecialchars( $dagURL ) ); ?>">View</a></td></tr>')
       vURLTR.find('td').eq(1).on('click',function(){vFuncSelect(this)})
+      vURLTR.find('a[data-qr]').eq(0).on('click',function(e){vFuncQRClick(this);e.preventDefault()})
       vURLTable.append(vURLTR)
 <?php
 				foreach ( $listDAGs as $dagID => $dagName )
 				{
 					$dagURL = $this->dagQueryID( $dagID );
 ?>
-      var vURLTR = $('<tr><td style="border:solid #000 1px"><?php
-					echo addslashes( htmlspecialchars( $dagName ) ); ?></td>' +
-                     '<td style="border:solid #000 1px">' + vBaseURL + '&amp;dag=<?php
-					echo addslashes( htmlspecialchars( $dagURL ) ); ?></td></tr>')
+      var vURLTR = $('<tr><td style="border:solid #000 1px;padding:3px">' +
+                     '<?php echo addslashes( htmlspecialchars( $dagName ) ); ?></td>' +
+                     '<td style="border:solid #000 1px;padding:3px">' + vBaseURL + '&amp;dag=' +
+                     '<?php echo addslashes( htmlspecialchars( $dagURL ) ); ?></td>' +
+                     '<td style="border:solid #000 1px;padding:3px;text-align:center">' +
+                     '<a href="#" data-qr="' + vURLCode + '%26dag%3D' +
+                     '<?php echo addslashes( htmlspecialchars( $dagURL ) ); ?>">View</a></td></tr>')
       vURLTR.find('td').eq(1).on('click',function(){vFuncSelect(this)})
+      vURLTR.find('a[data-qr]').eq(0).on('click',function(e){vFuncQRClick(this);e.preventDefault()})
       vURLTable.append(vURLTR)
 <?php
 				}
@@ -528,8 +581,18 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 		// Perform the record rename and DAG assignment.
 		$newRecordID = $this->performSurveyRename( $record, $event_id );
-		$_SESSION['module_customrecordnaming_resubmit'] = time();
+		// Remove the survey record's first submit timestamp, so that the user is able to load the
+		// survey again after rename in order to complete it.
+		$this->query( 'UPDATE redcap_surveys_response SET first_submit_time = NULL ' .
+		              'WHERE completion_time IS NULL ' .
+		              'AND record = ? AND instance = ? AND participant_id IN ' .
+		              '(SELECT participant_id FROM redcap_surveys_participants p ' .
+		              'JOIN redcap_surveys s ON p.survey_id = s.survey_id ' .
+		              'WHERE form_name = ? AND event_id = ? AND project_id = ?) LIMIT 1',
+		              [ $newRecordID, ( is_numeric( $repeat_instance ) ? $repeat_instance : 1 ),
+		                $instrument, $event_id, $project_id ] );
 		// Redirect to the survey link for the now established record.
+		$_SESSION['module_customrecordnaming_resubmit'] = time();
 		$this->redirect( \REDCap::getSurveyLink( $newRecordID, $instrument, $event_id ) );
 	}
 
@@ -629,33 +692,35 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$uRegex = $this->getProjectSetting( 'scheme-user-supplied-format' )[ $armSettingID ];
 		}
 
+		// Check if a field lookup component is expected, so that the user can be prompted for it
+		// when submitting the survey.
+		$fPrompt = null;
+		if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
+		             'F' ) !== false )
+		{
+			$fPrompt = $this->getProjectSetting( 'scheme-prompt-field-lookup' )[ $armSettingID ];
+			$fList =
+				$this->getFieldLookupList(
+					$this->getProjectSetting( 'scheme-field-lookup-value' )[ $armSettingID ],
+					$this->getProjectSetting( 'scheme-field-lookup-desc' )[ $armSettingID ],
+					$this->getProjectSetting( 'scheme-field-lookup-filter' )[ $armSettingID ] );
+		}
+
 ?>
 <script type="text/javascript">
   $(function(){
     $('#form').attr('action', $('#form').attr('action') + '&dag=<?php echo $dagParam; ?>' )
 <?php
 
-		if ( $uPrompt !== null )
+		if ( $uPrompt !== null || $fPrompt !== null )
 		{
 ?>
     var vOldDataEntrySubmit = dataEntrySubmit
-    dataEntrySubmit = function (el)
-    {
-      var vResponse = prompt( <?php echo json_encode( $uPrompt ); ?> )
-      if ( vResponse === null || vResponse == '' )
-      {
-        $(el).button('enable')
-        return
-      }
-      else if ( ! new RegExp( <?php echo json_encode( $uRegex ); ?> ).test( vResponse ) )
-      {
-        alert( 'Sorry, the value you entered was not valid.' )
-        $(el).button('enable')
-        return
-      }
-      document.cookie = 'redcap_custom_record_name=' + encodeURIComponent( vResponse ) + ';secure'
-      vOldDataEntrySubmit(el)
-    }
+    dataEntrySubmit = <?php
+			echo $this->makeUserPromptJS( 'el', 'vOldDataEntrySubmit(el)',
+			                              '$(el).button(\'enable\')', $uPrompt, $uRegex,
+			                              $fPrompt, $fList, true ); ?>
+
 <?php
 		}
 
@@ -664,6 +729,66 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 </script>
 <?php
 
+	}
+
+
+
+	// Check if the current user can configure the module settings for the project.
+	public function canConfigure()
+	{
+		$user = $this->getUser();
+		if ( ! is_object( $user ) )
+		{
+			return false;
+		}
+		if ( $user->isSuperUser() )
+		{
+			return true;
+		}
+		$userRights = $user->getRights();
+		$specificRights = ( $this->getSystemSetting( 'config-require-user-permission' ) == 'true' );
+		$moduleName = preg_replace( '/_v[0-9.]+$/', '', $this->getModuleDirectoryName() );
+		if ( $specificRights && is_array( $userRights['external_module_config'] ) &&
+		     in_array( $moduleName, $userRights['external_module_config'] ) )
+		{
+			return true;
+		}
+		if ( ! $specificRights && $userRights['design'] == '1' )
+		{
+			return true;
+		}
+		return false;
+	}
+
+
+
+	// Get the arm IDs and names for the project.
+	public function getArms( $projectID = null )
+	{
+		if ( $projectID === null )
+		{
+			$projectID = $this->getProjectId();
+		}
+		$query = $this->query( 'SELECT arm_id, arm_name FROM redcap_events_arms ' .
+		                       'WHERE project_id = ? ORDER BY arm_num', [ $projectID ] );
+		$result = [];
+		while ( $row = $query->fetch_assoc() )
+		{
+			$result[ $row['arm_id'] ] = $row['arm_name'];
+		}
+		return $result;
+	}
+
+
+
+	// Get the list of record name types.
+	public function getListRecordNameTypes()
+	{
+		return [ 'R' => 'Record number',
+                 'G' => 'DAG',
+                 'U' => 'User supplied',
+                 'T' => 'Timestamp',
+                 'F' => 'Field value lookup' ];
 	}
 
 
@@ -678,6 +803,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 		$errMsg = '';
 		$clearCounters = false;
+		$listFieldNames = \REDCap::getFieldNames();
 
 		// If the DAG name restriction is specified, check it is a valid regular expression.
 		if ( $settings['dag-format'] != '' &&
@@ -740,58 +866,20 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				           " must include DAG if per DAG numbering used";
 			}
 
-			// Ensure that the prompt for the user supplied name is provided if and only if the
-			// record name type includes a user supplied component.
-			if ( strpos( $settings['scheme-name-type'][$i], 'U' ) !== false &&
-			     $settings['scheme-prompt-user-supplied'][$i] == '' )
-			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Prompt cannot be blank if user supplied name used";
-			}
-			elseif ( strpos( $settings['scheme-name-type'][$i], 'U' ) === false &&
-			     $settings['scheme-prompt-user-supplied'][$i] != '' )
-			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Prompt must be blank if user supplied name not used";
-			}
-
-			// Validate the user supplied name format for the naming scheme.
-			// This is required if and only if the record name includes a user supplied component.
-			if ( strpos( $settings['scheme-name-type'][$i], 'U' ) !== false &&
-			     $settings['scheme-user-supplied-format'][$i] == '' )
-			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Format cannot be blank if user supplied name used";
-			}
-			elseif ( strpos( $settings['scheme-name-type'][$i], 'U' ) === false &&
-			     $settings['scheme-user-supplied-format'][$i] != '' )
-			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Format must be blank if user supplied name not used";
-			}
-			elseif ( $settings['scheme-user-supplied-format'][$i] != '' &&
-			         preg_match( $this->makePcreString(
-			                                       $settings['scheme-user-supplied-format'][$i] ),
-			                     '' ) === false )
-			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Invalid regular expression for user supplied name format";
-			}
-
 			// Ensure that the starting number, if set, is a positive integer.
 			if ( $settings['scheme-number-start'][$i] != '' &&
-			     ! preg_match( '/^[1-9][0-9]*$/', $settings['scheme-number-start'][$i] ) )
+			     ! preg_match( '/^0|[1-9][0-9]*$/', $settings['scheme-number-start'][$i] ) )
 			{
 				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Starting number must be a positive integer";
+				           ": First record number must be a positive integer";
 			}
 
 			// Validate the DAG name format for the naming scheme. This is required if the record
 			// name includes the DAG. If the name format is specified then the subpattern must also
 			// be specified, otherwise neither can be specified. The subpattern must point to a
 			// valid subpattern within the name format regular expression.
-			if ( $settings['scheme-dag-format'][$i] == '' &&
-			     in_array( $settings['scheme-name-type'][$i], [ 'GR', 'RG' ] ) )
+			if ( strpos( $settings['scheme-name-type'][$i], 'G' ) !== false &&
+			     $settings['scheme-dag-format'][$i] == '' )
 			{
 				$errMsg .= "\n- Naming scheme " . ($i + 1) .
 				           ": Value required for DAG name format";
@@ -827,6 +915,86 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 				$errMsg .= "\n- Naming scheme " . ($i + 1) .
 				           ": Specified DAG format subpattern greater than number of subpatterns";
+			}
+
+			// Ensure that the prompt for the user supplied name is provided if the record name type
+			// includes a user supplied component.
+			if ( strpos( $settings['scheme-name-type'][$i], 'U' ) !== false &&
+			     $settings['scheme-prompt-user-supplied'][$i] == '' )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": User supplied name prompt cannot be blank if user supplied name used";
+			}
+
+			// Validate the user supplied name format for the naming scheme.
+			// This is required if the record name includes a user supplied component.
+			if ( strpos( $settings['scheme-name-type'][$i], 'U' ) !== false &&
+			     $settings['scheme-user-supplied-format'][$i] == '' )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": User supplied name format cannot be blank if user supplied name used";
+			}
+			elseif ( $settings['scheme-user-supplied-format'][$i] != '' &&
+			         preg_match( $this->makePcreString(
+			                                       $settings['scheme-user-supplied-format'][$i] ),
+			                     '' ) === false )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": Invalid regular expression for user supplied name format";
+			}
+
+			// Ensure that the timestamp format and timezone are provided if the record name type
+			// includes the timestamp.
+			if ( strpos( $settings['scheme-name-type'][$i], 'T' ) !== false &&
+			     $settings['scheme-timestamp-format'][$i] == '' )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": Timestamp format cannot be blank if timestamp used";
+			}
+			if ( strpos( $settings['scheme-name-type'][$i], 'T' ) !== false &&
+			     $settings['scheme-timestamp-tz'][$i] == '' )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": Timezone cannot be blank if timestamp used";
+			}
+
+			// Ensure that the prompt for the field lookup is provided if the record name type
+			// includes a field value lookup.
+			if ( strpos( $settings['scheme-name-type'][$i], 'F' ) !== false &&
+			     $settings['scheme-prompt-field-lookup'][$i] == '' )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": Field lookup prompt cannot be blank if field value lookup used";
+			}
+
+			// Validate the lookup value field. This is required if the record name includes a
+			// field value lookup.
+			if ( strpos( $settings['scheme-name-type'][$i], 'F' ) !== false &&
+			     $settings['scheme-field-lookup-value'][$i] == '' )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": Lookup value field cannot be blank if field value lookup used";
+			}
+			elseif ( $settings['scheme-field-lookup-value'][$i] != '' &&
+			         ! in_array( $settings['scheme-field-lookup-value'][$i], $listFieldNames ) )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": The specified lookup value field does not exist";
+			}
+
+			// Validate the lookup description field. This is required if the record name includes a
+			// field value lookup.
+			if ( strpos( $settings['scheme-name-type'][$i], 'F' ) !== false &&
+			     $settings['scheme-field-lookup-desc'][$i] == '' )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": Lookup description field cannot be blank if field value lookup used";
+			}
+			elseif ( $settings['scheme-field-lookup-desc'][$i] != '' &&
+			         ! in_array( $settings['scheme-field-lookup-desc'][$i], $listFieldNames ) )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": The specified lookup description field does not exist";
 			}
 
 		}
@@ -959,11 +1127,13 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		// Get the scheme settings for the arm.
 		$numbering = $this->getProjectSetting( 'numbering' );
 		$nameType = $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ];
-		$startNum = $this->getProjectSetting( 'scheme-number-start' )[ $armSettingID ];
-		$zeroPad = $this->getProjectSetting( 'scheme-number-pad' )[ $armSettingID ];
 		$namePrefix = $this->getProjectSetting( 'scheme-name-prefix' )[ $armSettingID ];
 		$nameSeparator = $this->getProjectSetting( 'scheme-name-separator' )[ $armSettingID ];
 		$nameSuffix = $this->getProjectSetting( 'scheme-name-suffix' )[ $armSettingID ];
+		$startNum = $this->getProjectSetting( 'scheme-number-start' )[ $armSettingID ];
+		$zeroPad = $this->getProjectSetting( 'scheme-number-pad' )[ $armSettingID ];
+		$timestampFormat = $this->getProjectSetting( 'scheme-timestamp-format' )[ $armSettingID ];
+		$timestampTZ = $this->getProjectSetting( 'scheme-timestamp-tz' )[ $armSettingID ];
 
 		// Get the user supplied component if it has been entered.
 		$suppliedComponent = '';
@@ -973,10 +1143,21 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			setcookie( 'redcap_custom_record_name', '', 1, '', '', true );
 		}
 
+		// Get the field value from the lookup if it has been entered.
+		$suppliedFieldValue = '';
+		if ( isset( $_COOKIE[ 'redcap_custom_record_name_fieldval' ] ) )
+		{
+			$suppliedFieldValue = $_COOKIE[ 'redcap_custom_record_name_fieldval' ];
+			setcookie( 'redcap_custom_record_name_fieldval', '', 1, '', '', true );
+		}
+
 		// Determine the record number using the record counter.
 		$counterID = 'project';
 		if ( $numbering == 'A' ||
-		     ( $numbering == 'AG?' && strpos( $nameType, 'G' ) === false ) )
+		     ( $numbering == 'AG?' && strpos( $nameType, 'G' ) === false ) ||
+		     ( $numbering == 'AF' && strpos( $nameType, 'F' ) === false ) ||
+		     ( $numbering == 'AGF' &&
+		       strpos( $nameType, 'G' ) === false && strpos( $nameType, 'F' ) === false ) )
 		{
 			$counterID = "$armID";
 		}
@@ -985,9 +1166,22 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$counterID = "$groupCode";
 		}
 		elseif ( $numbering == 'AG' ||
-		     ( $numbering == 'AG?' && strpos( $nameType, 'G' ) !== false ) )
+		         ( $numbering == 'AG?' && strpos( $nameType, 'G' ) !== false ) ||
+		         ( $numbering == 'AGF' &&
+		           strpos( $nameType, 'G' ) !== false && strpos( $nameType, 'F' ) === false ) )
 		{
 			$counterID = "$armID/$groupCode";
+		}
+		elseif ( ( $numbering == 'AF' && strpos( $nameType, 'F' ) !== false ) ||
+		         ( $numbering == 'AGF' &&
+		           strpos( $nameType, 'G' ) === false && strpos( $nameType, 'F' ) !== false ) )
+		{
+			$counterID = "$armID/$suppliedFieldValue";
+		}
+		elseif ( $numbering == 'AGF' &&
+		         strpos( $nameType, 'G' ) !== false && strpos( $nameType, 'F' ) !== false )
+		{
+			$counterID = "$armID/$groupCode/$suppliedFieldValue";
 		}
 		$recordCounter = json_decode( $this->getProjectSetting( 'project-record-counter' ), true );
 		$lastRecord = json_decode( $this->getProjectSetting( 'project-last-record' ), true );
@@ -1055,6 +1249,21 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				{
 					$recordName .= $suppliedComponent;
 				}
+				elseif ( substr( $nameType, $i, 1 ) == 'T' ) // timestamp
+				{
+					if ( $timestampTZ == 'U' ) // UTC
+					{
+						$recordName .= gmdate( $timestampFormat );
+					}
+					else // server timezone
+					{
+						$recordName .= date( $timestampFormat );
+					}
+				}
+				elseif ( substr( $nameType, $i, 1 ) == 'F' ) // field value lookup
+				{
+					$recordName .= $suppliedFieldValue;
+				}
 			}
 			// Prepend the prefix and append the suffix to the record name.
 			$recordName = $namePrefix . $recordName . $nameSuffix;
@@ -1086,6 +1295,39 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 
+	// Get the field value/description list, using the lookup value field, lookup description field
+	// and the lookup filter logic.
+	protected function getFieldLookupList( $valueField, $descField, $filterLogic )
+	{
+		// Get the record data for the project.
+		try
+		{
+			$lookupResult = json_decode( \REDCap::getData( [ 'return_format' => 'json',
+			                                                 'filterLogic' => $filterLogic,
+			                                                 'exportDataAccessGroups' => true,
+			                                                 'exportSurveyFields' => true,
+			                                                 'exportAsLabels' => true ] ),
+			                             true );
+		}
+		catch ( Exception $e )
+		{
+			return [];
+		}
+		// Retrieve the lookup values/descriptions where these are not empty.
+		$result = [];
+		foreach ( $lookupResult as $lookupResultItem )
+		{
+			if ( isset( $lookupResultItem[ $descField ] ) && $lookupResultItem[ $descField ] != '' &&
+			     isset( $lookupResultItem[ $valueField ] ) && $lookupResultItem[ $valueField ] != '' )
+			{
+				$result[ $lookupResultItem[ $valueField ] ] = $lookupResultItem[ $descField ];
+			}
+		}
+		return $result;
+	}
+
+
+
 	// Given a DAG ID, get the DAG code for use in record names.
 	protected function getGroupCode( $dagID, $armSettingID )
 	{
@@ -1107,6 +1349,76 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			return $dagMatches[ $dagSection ];
 		}
 		return false;
+	}
+
+
+
+	// Prompt the user for record name components.
+	protected function makeUserPromptJS( $jsParams, $jsFinal, $jsCancel, $userSuppliedPrompt,
+	                                     $userSuppliedRegex, $fieldValuePrompt, $listFields,
+	                                     $isSurvey )
+	{
+		$output = "function ($jsParams) { var vDialog = $('<div></div>');";
+		if ( $userSuppliedPrompt !== null )
+		{
+			$output .= "vDialog.append('<p>" .
+			           addslashes( nl2br( htmlspecialchars( $userSuppliedPrompt ) ) ) . "</p>');" .
+			           "var vUserSupplied = $('<input type=\"text\" style=\"width:99%\">');" .
+			           "vDialog.append($('<p style=\"max-width:100%\"></p>')." .
+			           "append(vUserSupplied));var vUserSuppliedErr = " .
+			           "$('<p style=\"color:#c00\"></p>');vDialog.append(vUserSuppliedErr);";
+		}
+		if ( $userSuppliedPrompt !== null && $fieldValuePrompt !== null )
+		{
+			$output .= "vDialog.append('<hr>');";
+		}
+		if ( $fieldValuePrompt !== null )
+		{
+			$output .= "vDialog.append('<p>" .
+			           addslashes( nl2br( htmlspecialchars( $fieldValuePrompt ) ) ) . "</p>');" .
+			           "var vFieldValues = $('<select><option></option>";
+			foreach ( $listFields as $fieldValue => $fieldDesc )
+			{
+				$output .= '<option value="' . addslashes( htmlspecialchars( $fieldValue ) ) .
+				           '">' . addslashes( htmlspecialchars( $fieldDesc ) ) . '</option>';
+			}
+			$output .= "</select>');" .
+			           "vDialog.append($('<p style=\"max-width:99%\"></p>').append(vFieldValues))" .
+			           ";var vFieldValuesErr = $('<p style=\"color:#c00\"></p>');" .
+			           "vDialog.append(vFieldValuesErr);";
+		}
+		$output .= 'vDialog.dialog({width:400,modal:true,buttons:{"' .
+		           addslashes( $isSurvey ? $GLOBALS['lang']['survey_200']
+		                                 : $GLOBALS['lang']['data_entry_46'] ) .
+		           '":function(){var vValid = true;';
+		if ( $userSuppliedPrompt !== null )
+		{
+			$output .= "vUserSuppliedErr.text('');if (vUserSupplied.val() == ''){vValid = false;" .
+			           "vUserSuppliedErr.text('Sorry, this field cannot be blank.')" .
+			           "}else if(!new RegExp(" . json_encode( $userSuppliedRegex ) .
+			           ").test( vUserSupplied.val() ) ){vValid = false;" .
+			           "vUserSuppliedErr.text('Sorry, the value you entered was not valid.')};";
+		}
+		if ( $fieldValuePrompt !== null )
+		{
+			$output .= "vFieldValuesErr.text('');if (vFieldValues.val() == ''){vValid = false;" .
+			           "vFieldValuesErr.text('Sorry, this field cannot be blank.')};";
+		}
+		$output .= 'if (vValid){';
+		if ( $userSuppliedPrompt !== null )
+		{
+			$output .= "document.cookie = 'redcap_custom_record_name=' + " .
+			           "encodeURIComponent( vUserSupplied.val() ) + ';secure';" .
+			           "vUserSupplied.prop('disabled',true);";
+		}
+		if ( $fieldValuePrompt !== null )
+		{
+			$output .= "document.cookie = 'redcap_custom_record_name_fieldval=' + " .
+			           "encodeURIComponent(vFieldValues.val()) + ';secure';" .
+			           "vFieldValues.prop('disabled',true);";
+		}
+		$output .= $jsFinal . '}}},close:function(){' . $jsCancel . '}})}';
+		return $output;
 	}
 
 
@@ -1233,6 +1545,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	private $hasSettingsForArm;
 	private $userSuppliedComponentPrompt;
 	private $userSuppliedComponentRegex;
+	private $fieldLookupPrompt;
+	private $fieldLookupList;
 	private $listArmIdNum;
 	private $listArmIdEvent;
 	private $userGroup;
