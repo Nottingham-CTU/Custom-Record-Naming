@@ -81,7 +81,7 @@ if ( ! empty( $_POST ) )
 				                                 $validationErrors );
 			}
 		}
-		echo json_encode( $validationErrors );
+		$module->echoText( json_encode( $validationErrors ) );
 		exit;
 	}
 	// Apply the settings if no validation errors, then redirect.
@@ -198,7 +198,7 @@ while ( $res = $queryNonEmptyArms->fetch_assoc() )
 {
 	if ( $res['num'] > 0 )
 	{
-		$listNonEmptyArms[ $res['arm_id'] ] = $res['num'];
+		$listNonEmptyArms[ $res['arm_id'] ] = intval( $res['num'] );
 	}
 }
 
@@ -219,7 +219,8 @@ foreach ( $listArms as $armID => $armName )
 
 ?>
    <li>
-    <a href="#modsettings_arm<?php echo $armID; ?>"><?php echo htmlspecialchars( $armName ); ?></a>
+    <a href="#modsettings_arm<?php
+	echo intval( $armID ); ?>"><?php echo $module->escapeHTML( $armName ); ?></a>
    </li>
 <?php
 
@@ -275,9 +276,9 @@ foreach ( $listArms as $armID => $armName )
 	}
 
 ?>
-  <div id="modsettings_arm<?php echo $armID; ?>">
+  <div id="modsettings_arm<?php echo intval( $armID ); ?>">
    <input type="hidden" name="scheme-settings[]" value="true">
-   <input type="hidden" name="scheme-arm[]" value="<?php echo $armID; ?>">
+   <input type="hidden" name="scheme-arm[]" value="<?php echo intval( $armID ); ?>">
 <?php
 
 	// Display a warning if the arm already contains records.
@@ -288,7 +289,7 @@ foreach ( $listArms as $armID => $armName )
    <div class="yellow" style="max-width:100%">
     <img src="<?php echo APP_PATH_WEBROOT; ?>/Resources/images/exclamation_orange.png">
     This arm already contains <?php echo $listNonEmptyArms[ $armID ]; ?> record<?php
-		echo $listNonEmptyArms == 1 ? '' : 's'; ?>.
+		echo $listNonEmptyArms[ $armID ] == 1 ? '' : 's'; ?>.
    </div>
 <?php
 
