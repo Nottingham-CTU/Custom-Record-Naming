@@ -52,23 +52,33 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$this->userGroup = $userGroup;
 
 			$armNum = 1;
-			if ( isset( $_GET['arm'] ) )
+			if ( isset( $_GET['arm'] ) && is_numeric( $_GET['arm'] ) )
 			{
 				$armNum = $_GET['arm'];
 			}
-			elseif ( isset( $GLOBALS['ui_state'][PROJECT_ID]['record_status_dashboard']['arm'] ) &&
-			         substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 37 ) ==
-			           'DataEntry/record_status_dashboard.php' )
+			elseif ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 37 ) ==
+			            'DataEntry/record_status_dashboard.php' )
 			{
-				$armNum = $GLOBALS['ui_state'][PROJECT_ID]['record_status_dashboard']['arm'];
+				$savedArmNum =
+					\UIState::getUIStateValue( PROJECT_ID, 'record_status_dashboard', 'arm' );
+				if ( $savedArmNum != '' )
+				{
+					$armNum = $savedArmNum;
+				}
 			}
 
 			$armID = $this->getArmIdFromNum( $armNum ); // arm ID or NULL
+			if ( isset( $GLOBALS['multiple_arms'] ) && ! $GLOBALS['multiple_arms'] &&
+			     count( $this->listArmIdNum ) == 1 )
+			{
+				$armID = array_values( $this->listArmIdNum )[0];
+			}
 
 			// If the arm ID cannot be determined, a record cannot be created.
 			if ( $armID === null )
 			{
 				$this->canAddRecord = false;
+				$this->hasSettingsForArm = false;
 			}
 
 			// Check that the settings have been completed for the chosen arm. If there is no
@@ -1327,7 +1337,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			                                                 'exportAsLabels' => true ] ),
 			                             true );
 		}
-		catch ( Exception $e )
+		catch ( \Exception $e )
 		{
 			return [];
 		}
