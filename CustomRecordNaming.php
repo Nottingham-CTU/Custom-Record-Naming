@@ -52,23 +52,33 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$this->userGroup = $userGroup;
 
 			$armNum = 1;
-			if ( isset( $_GET['arm'] ) )
+			if ( isset( $_GET['arm'] ) && is_numeric( $_GET['arm'] ) )
 			{
 				$armNum = $_GET['arm'];
 			}
-			elseif ( isset( $GLOBALS['ui_state'][PROJECT_ID]['record_status_dashboard']['arm'] ) &&
-			         substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 37 ) ==
-			           'DataEntry/record_status_dashboard.php' )
+			elseif ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 37 ) ==
+			            'DataEntry/record_status_dashboard.php' )
 			{
-				$armNum = $GLOBALS['ui_state'][PROJECT_ID]['record_status_dashboard']['arm'];
+				$savedArmNum =
+					\UIState::getUIStateValue( PROJECT_ID, 'record_status_dashboard', 'arm' );
+				if ( $savedArmNum != '' )
+				{
+					$armNum = $savedArmNum;
+				}
 			}
 
 			$armID = $this->getArmIdFromNum( $armNum ); // arm ID or NULL
+			if ( isset( $GLOBALS['multiple_arms'] ) && ! $GLOBALS['multiple_arms'] &&
+			     count( $this->listArmIdNum ) == 1 )
+			{
+				$armID = array_values( $this->listArmIdNum )[0];
+			}
 
 			// If the arm ID cannot be determined, a record cannot be created.
 			if ( $armID === null )
 			{
 				$this->canAddRecord = false;
+				$this->hasSettingsForArm = false;
 			}
 
 			// Check that the settings have been completed for the chosen arm. If there is no
@@ -454,7 +464,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
     {
       $.ajax( { url : '<?php echo $this->getUrl( 'ajax_keepalive.php' ); ?>',
                 method : 'POST',
-                data : { record : '<?php echo addslashes( $_GET['id'] ); ?>',
+                data : { record : '<?php $this->echoText( addslashes( $_GET['id'] ) ); ?>',
                          arm : '<?php echo $this->getArmIdFromNum( $_GET['arm'] ?? 1 ); ?>',
                          dag : '<?php echo $this->groupCode ?? ''; ?>' },
                 headers : { 'X-RC-CRN-Req' : '1' },
@@ -504,8 +514,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
         var vQR = vQRDialog.find('p').eq(1)
         vQR.html('')
         vQR.append($('<img>').attr('src','<?php echo addslashes( APP_PATH_WEBROOT ); ?>Surveys/' +
-                                         'survey_link_qrcode.php?pid=<?php echo $_GET['pid']; ?>' +
-                                         '&hash=' + elem.dataset.qr))
+                                         'survey_link_qrcode.php?pid=' +
+                                         '<?php echo intval( $_GET['pid'] ); ?>&hash=' +
+                                         elem.dataset.qr))
         vQRDialog.dialog(
         {
           autoOpen:true,
@@ -526,10 +537,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 ?>
       var vURLTR = $('<tr><td style="border:solid #000 1px;padding:3px"><i>none</i></td>' +
                      '<td style="border:solid #000 1px;padding:3px">' + vBaseURL + '&amp;dag=' +
-                     '<?php echo addslashes( htmlspecialchars( $dagURL ) ); ?></td>' +
+                     '<?php echo $this->escapeHTML( $dagURL ); ?></td>' +
                      '<td style="border:solid #000 1px;padding:3px;text-align:center">' +
                      '<a href="#" data-qr="' + vURLCode + '%26dag%3D' +
-                     '<?php echo addslashes( htmlspecialchars( $dagURL ) ); ?>">View</a></td></tr>')
+                     '<?php echo $this->escapeHTML( $dagURL ); ?>">View</a></td></tr>')
       vURLTR.find('td').eq(1).on('click',function(){vFuncSelect(this)})
       vURLTR.find('a[data-qr]').eq(0).on('click',function(e){vFuncQRClick(this);e.preventDefault()})
       vURLTable.append(vURLTR)
@@ -539,12 +550,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 					$dagURL = $this->dagQueryID( $dagID );
 ?>
       var vURLTR = $('<tr><td style="border:solid #000 1px;padding:3px">' +
-                     '<?php echo addslashes( htmlspecialchars( $dagName ) ); ?></td>' +
+                     '<?php echo $this->escapeHTML( $dagName ); ?></td>' +
                      '<td style="border:solid #000 1px;padding:3px">' + vBaseURL + '&amp;dag=' +
-                     '<?php echo addslashes( htmlspecialchars( $dagURL ) ); ?></td>' +
+                     '<?php echo $this->escapeHTML( $dagURL ); ?></td>' +
                      '<td style="border:solid #000 1px;padding:3px;text-align:center">' +
                      '<a href="#" data-qr="' + vURLCode + '%26dag%3D' +
-                     '<?php echo addslashes( htmlspecialchars( $dagURL ) ); ?>">View</a></td></tr>')
+                     '<?php echo $this->escapeHTML( $dagURL ); ?>">View</a></td></tr>')
       vURLTR.find('td').eq(1).on('click',function(){vFuncSelect(this)})
       vURLTR.find('a[data-qr]').eq(0).on('click',function(e){vFuncQRClick(this);e.preventDefault()})
       vURLTable.append(vURLTR)
@@ -758,6 +769,23 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			return true;
 		}
 		return false;
+	}
+
+
+
+	// Echo plain text to output (without Psalm taints).
+	// Use only for e.g. JSON or CSV output.
+	function echoText( $text )
+	{
+		echo array_reduce( [ $text ], function( $c, $i ) { return $c . $i; }, '' );
+	}
+
+
+
+	// Escapes text for inclusion in HTML.
+	function escapeHTML( $text )
+	{
+		return htmlspecialchars( $text, ENT_QUOTES );
 	}
 
 
@@ -1309,7 +1337,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			                                                 'exportAsLabels' => true ] ),
 			                             true );
 		}
-		catch ( Exception $e )
+		catch ( \Exception $e )
 		{
 			return [];
 		}
@@ -1362,7 +1390,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( $userSuppliedPrompt !== null )
 		{
 			$output .= "vDialog.append('<p>" .
-			           addslashes( nl2br( htmlspecialchars( $userSuppliedPrompt ) ) ) . "</p>');" .
+			           nl2br( $this->escapeHTML( $userSuppliedPrompt ) ) . "</p>');" .
 			           "var vUserSupplied = $('<input type=\"text\" style=\"width:99%\">');" .
 			           "vDialog.append($('<p style=\"max-width:100%\"></p>')." .
 			           "append(vUserSupplied));var vUserSuppliedErr = " .
@@ -1375,12 +1403,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( $fieldValuePrompt !== null )
 		{
 			$output .= "vDialog.append('<p>" .
-			           addslashes( nl2br( htmlspecialchars( $fieldValuePrompt ) ) ) . "</p>');" .
+			           nl2br( $this->escapeHTML( $fieldValuePrompt ) ) . "</p>');" .
 			           "var vFieldValues = $('<select><option></option>";
 			foreach ( $listFields as $fieldValue => $fieldDesc )
 			{
-				$output .= '<option value="' . addslashes( htmlspecialchars( $fieldValue ) ) .
-				           '">' . addslashes( htmlspecialchars( $fieldDesc ) ) . '</option>';
+				$output .= '<option value="' . $this->escapeHTML( $fieldValue ) .
+				           '">' . $this->escapeHTML( $fieldDesc ) . '</option>';
 			}
 			$output .= "</select>');" .
 			           "vDialog.append($('<p style=\"max-width:99%\"></p>').append(vFieldValues))" .
@@ -1536,7 +1564,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		{
 			return null;
 		}
-		return $this->listArmIdNum[ $num ];
+		return intval( $this->listArmIdNum[ $num ] );
 	}
 
 

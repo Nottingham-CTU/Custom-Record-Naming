@@ -1,7 +1,7 @@
 {
 	"name": "Custom Record Naming",
 	"namespace": "Nottingham\\CustomRecordNaming",
-	"description": "Automatically name records according to a custom scheme.",
+	"description": "Automatically name records according to a custom scheme.<br>Allows per-arm configuration of naming schemes.<br>Supports public surveys (includes per-DAG public survey links).",
 	"authors": [
 		{
 			"name": "Richard Dooley",
