@@ -154,6 +154,24 @@
 					"key" : "scheme-field-lookup-filter",
 					"name" : "Filter records by logic",
 					"type" : "textarea"
+				},
+				{
+					"key" : "scheme-name-trigger",
+					"name" : "Trigger custom naming",
+					"type" : "radio",
+					"choices" : [
+						{ "value" : "", "name" : "On auto numbering (default)" },
+						{ "value" : "R", "name" : "On auto numbering and when naming in REDCap format" }
+					]
+				},
+				{
+					"key" : "scheme-allow-new",
+					"name" : "Allow new records on this arm",
+					"type" : "radio",
+					"choices" : [
+						{ "value" : "", "name" : "Always (default)" },
+						{ "value" : "S", "name" : "On surveys only" }
+					]
 				}
 			]
 		},

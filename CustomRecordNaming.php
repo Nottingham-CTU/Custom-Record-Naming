@@ -35,6 +35,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 		$this->canAddRecord = true;
 		$this->hasSettingsForArm = true;
+		$this->blockedBySettings = false;
 		$this->userSuppliedComponentPrompt = null;
 		$this->userSuppliedComponentRegex = null;
 		$this->fieldLookupPrompt = null;
@@ -73,6 +74,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 				$armID = array_values( $this->listArmIdNum )[0];
 			}
+			$armSettingID = null;
 
 			// If the arm ID cannot be determined, a record cannot be created.
 			if ( $armID === null )
@@ -107,6 +109,19 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 								$this->getProjectSetting( 'scheme-field-lookup-value' )[ $armSettingID ],
 								$this->getProjectSetting( 'scheme-field-lookup-desc' )[ $armSettingID ],
 								$this->getProjectSetting( 'scheme-field-lookup-filter' )[ $armSettingID ] );
+					}
+					$triggerOnRCName = $this->getProjectSetting( 'scheme-name-trigger' );
+					$triggerOnRCName = ( is_array( $triggerOnRCName ) &&
+					                     isset( $triggerOnRCName[ $armSettingID ] )
+					                   ? ( $triggerOnRCName[ $armSettingID ] == 'R' ) : false;
+					$schemeAllowNew = $this->getProjectSetting( 'scheme-allow-new' );
+					$schemeAllowNew = ( is_array( $schemeAllowNew ) &&
+					                    isset( $schemeAllowNew[ $armSettingID ] )
+					                  ? ( $schemeAllowNew[ $armSettingID ] != 'S' ) : true;
+					if ( ! $schemeAllowNew )
+					{
+						$this->canAddRecord = false;
+						$this->blockedBySettings = true;
 					}
 				}
 				else
@@ -161,7 +176,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 			// The presence of the 'auto' query string parameter indicates that the REDCap assigned
 			// record ID is in use. This will need to be replaced by the module generated record ID.
-			if ( isset( $_GET[ 'auto' ] ) )
+			if ( isset( $_GET[ 'auto' ] ) ||
+			     ( $armSettingID !== null && $triggerOnRCName && isset( $_GET[ 'id' ] ) &&
+			       preg_match( '/^([1-9][0-9]*-)?[1-9][0-9]*$/', $_GET[ 'id' ] ) ) )
 			{
 				// If the record cannot be created, redirect back to the add/edit records page.
 				// This shouldn't usually be invoked, as the add new record button will be replaced
@@ -373,17 +390,24 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
       {
         vListButton[ i ].style.display = 'none'
 <?php
-				if ( $this->hasSettingsForArm )
+				if ( ! $this->hasSettingsForArm )
 				{
 ?>
-        $( '<i>(You must be in a valid Data Access Group to add records)</i>'
+        $( '<i>(Record numbering has not been set up for the current arm)</i>'
+               ).insertBefore( vListButton[ i ] )
+<?php
+				}
+				else if ( $this->blockedBySettings )
+				{
+?>
+        $( '<i>(New records cannot be added for this arm)</i>'
                ).insertBefore( vListButton[ i ] )
 <?php
 				}
 				else
 				{
 ?>
-        $( '<i>(Record numbering has not been set up for the current arm)</i>'
+        $( '<i>(You must be in a valid Data Access Group to add records)</i>'
                ).insertBefore( vListButton[ i ] )
 <?php
 				}
@@ -657,7 +681,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		// Identify the set of settings for the arm.
 		$armID = $this->getArmIdFromEventId( $event_id );
 		$listSettingArmIDs = $this->getProjectSetting( 'scheme-arm' );
-		if ( in_array( $armID, $listSettingArmIDs ) )
+		if ( is_array( $listSettingArmIDs ) && in_array( $armID, $listSettingArmIDs ) )
 		{
 			$armSettingID = array_search( $armID, $listSettingArmIDs );
 		}
@@ -1475,7 +1499,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 		// Identify the set of settings for the arm.
 		$listSettingArmIDs = $this->getProjectSetting( 'scheme-arm' );
-		if ( ! in_array( $armID, $listSettingArmIDs ) )
+		if ( ! is_array( $listSettingArmIDs ) || ! in_array( $armID, $listSettingArmIDs ) )
 		{
 			return false;
 		}
@@ -1571,6 +1595,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 	private $canAddParticipant;
 	private $hasSettingsForArm;
+	private $blockedBySettings;
 	private $userSuppliedComponentPrompt;
 	private $userSuppliedComponentRegex;
 	private $fieldLookupPrompt;

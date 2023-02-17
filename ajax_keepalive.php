@@ -5,6 +5,9 @@
 // first time. If the record being 'kept alive' is still the most recently generated name, then the
 // corresponding timestamp value is reset to the current time.
 
+namespace Nottingham\CustomRecordNaming;
+
+
 header( 'Content-Type: application/json' );
 
 $record = $_POST['record'];

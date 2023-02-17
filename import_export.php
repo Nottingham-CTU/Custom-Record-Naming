@@ -4,6 +4,9 @@
  */
 
 
+namespace Nottingham\CustomRecordNaming;
+
+
 if ( ! $module->getUser()->isSuperUser() )
 {
 	exit;
