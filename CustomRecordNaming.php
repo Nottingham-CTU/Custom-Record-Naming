@@ -372,6 +372,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$addText1 = $GLOBALS['lang']['data_entry_46'];
 			$addText2 = $GLOBALS['lang']['data_entry_46'] . ' ' . $GLOBALS['lang']['data_entry_442'];
 			$addText3 = $GLOBALS['lang']['data_entry_46'] . $GLOBALS['lang']['data_entry_99'];
+			$addText4 = $GLOBALS['lang']['data_entry_533'];
 
 			// If a new record cannot be added (either because the user is not currently in a valid
 			// DAG, or because the selected arm does not have a naming scheme), then remove the
@@ -386,7 +387,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
     {
       if ( vListButton[ i ].innerText.trim() == '<?php echo $addText1; ?>' ||
            vListButton[ i ].innerText.trim() == '<?php echo $addText2; ?>' ||
-           vListButton[ i ].innerText.trim() == '<?php echo $addText3; ?>' )
+           vListButton[ i ].innerText.trim() == '<?php echo $addText3; ?>' ||
+           vListButton[ i ].innerText.trim() == '<?php echo $addText4; ?>' )
       {
         vListButton[ i ].style.display = 'none'
 <?php
@@ -432,7 +434,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
     {
       if ( vListButton[ i ].innerText.trim() == '<?php echo $addText1; ?>' ||
            vListButton[ i ].innerText.trim() == '<?php echo $addText2; ?>' ||
-           vListButton[ i ].innerText.trim() == '<?php echo $addText3; ?>' )
+           vListButton[ i ].innerText.trim() == '<?php echo $addText3; ?>' ||
+           vListButton[ i ].innerText.trim() == '<?php echo $addText4; ?>' )
       {
         var vOldOnclick = vListButton[ i ].onclick
         vListButton[ i ].onclick = <?php
