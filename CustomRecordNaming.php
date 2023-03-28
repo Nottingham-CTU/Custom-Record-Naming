@@ -112,11 +112,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 					}
 					$triggerOnRCName = $this->getProjectSetting( 'scheme-name-trigger' );
 					$triggerOnRCName = ( is_array( $triggerOnRCName ) &&
-					                     isset( $triggerOnRCName[ $armSettingID ] )
+					                     isset( $triggerOnRCName[ $armSettingID ] ) )
 					                   ? ( $triggerOnRCName[ $armSettingID ] == 'R' ) : false;
 					$schemeAllowNew = $this->getProjectSetting( 'scheme-allow-new' );
 					$schemeAllowNew = ( is_array( $schemeAllowNew ) &&
-					                    isset( $schemeAllowNew[ $armSettingID ] )
+					                    isset( $schemeAllowNew[ $armSettingID ] ) )
 					                  ? ( $schemeAllowNew[ $armSettingID ] != 'S' ) : true;
 					if ( ! $schemeAllowNew )
 					{
@@ -843,7 +843,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
                  'G' => 'DAG',
                  'U' => 'User supplied',
                  'T' => 'Timestamp',
-                 'F' => 'Field value lookup' ];
+                 'F' => 'Field value lookup',
+                 'C' => 'Check digits',
+                 '1' => 'Constant value' ];
 	}
 
 
@@ -1180,11 +1182,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	protected function generateRecordName( $armID, $armSettingID, $groupCode, $oldName = null )
 	{
 		// Get the scheme settings for the arm.
-		$numbering = $this->getProjectSetting( 'numbering' );
+		$numbering = $this->getProjectSetting( 'scheme-numbering' )[ $armSettingID ];
 		$nameType = $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ];
 		$namePrefix = $this->getProjectSetting( 'scheme-name-prefix' )[ $armSettingID ];
 		$nameSeparator = $this->getProjectSetting( 'scheme-name-separator' )[ $armSettingID ];
 		$nameSuffix = $this->getProjectSetting( 'scheme-name-suffix' )[ $armSettingID ];
+		$const1 = $this->getProjectSetting( 'scheme-const1' )[ $armSettingID ];
 		$startNum = $this->getProjectSetting( 'scheme-number-start' )[ $armSettingID ];
 		$zeroPad = $this->getProjectSetting( 'scheme-number-pad' )[ $armSettingID ];
 		$timestampFormat = $this->getProjectSetting( 'scheme-timestamp-format' )[ $armSettingID ];
@@ -1198,6 +1201,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			setcookie( 'redcap_custom_record_name', '', 1, '', '', true );
 		}
 
+		// Get the timestamp (UTC or server timezone) if required.
+		$timestamp = '';
+		if ( strpos( $nameType, 'T' ) !== false )
+		{
+			$timestamp = ( $timestampTZ == 'U' ) ? gmdate( $timestampFormat ) // UTC
+			                                     : date( $timestampFormat );  // server
+		}
+
 		// Get the field value from the lookup if it has been entered.
 		$suppliedFieldValue = '';
 		if ( isset( $_COOKIE[ 'redcap_custom_record_name_fieldval' ] ) )
@@ -1208,35 +1219,17 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 		// Determine the record number using the record counter.
 		$counterID = 'project';
-		if ( $numbering == 'A' ||
-		     ( $numbering == 'AG?' && strpos( $nameType, 'G' ) === false ) ||
-		     ( $numbering == 'AF' && strpos( $nameType, 'F' ) === false ) ||
-		     ( $numbering == 'AGF' &&
-		       strpos( $nameType, 'G' ) === false && strpos( $nameType, 'F' ) === false ) )
+		if ( strpos( $numbering, 'A' ) !== false )
 		{
 			$counterID = "$armID";
 		}
-		elseif ( $numbering == 'G' )
+		foreach ( [ 'G' => "$groupCode", 'U' => $suppliedComponent, 'T' => $timestamp,
+		            'F' => $suppliedFieldValue ] as $numberingCode => $counterComponent )
 		{
-			$counterID = "$groupCode";
-		}
-		elseif ( $numbering == 'AG' ||
-		         ( $numbering == 'AG?' && strpos( $nameType, 'G' ) !== false ) ||
-		         ( $numbering == 'AGF' &&
-		           strpos( $nameType, 'G' ) !== false && strpos( $nameType, 'F' ) === false ) )
-		{
-			$counterID = "$armID/$groupCode";
-		}
-		elseif ( ( $numbering == 'AF' && strpos( $nameType, 'F' ) !== false ) ||
-		         ( $numbering == 'AGF' &&
-		           strpos( $nameType, 'G' ) === false && strpos( $nameType, 'F' ) !== false ) )
-		{
-			$counterID = "$armID/$suppliedFieldValue";
-		}
-		elseif ( $numbering == 'AGF' &&
-		         strpos( $nameType, 'G' ) !== false && strpos( $nameType, 'F' ) !== false )
-		{
-			$counterID = "$armID/$groupCode/$suppliedFieldValue";
+			if ( strpos( $numbering, $numberingCode ) !== false )
+			{
+				$counterID .= '/' . str_replace( ['\\','/'], ['\\\\','\\'], $counterComponent );
+			}
 		}
 		$recordCounter = json_decode( $this->getProjectSetting( 'project-record-counter' ), true );
 		$lastRecord = json_decode( $this->getProjectSetting( 'project-last-record' ), true );
@@ -1273,6 +1266,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 		// Create the record name.
 		// Loop until an unused record name is generated.
+		// TODO: Handle check digits.
 		while ( true )
 		{
 			$recordName = '';
@@ -1286,9 +1280,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 			// If (part of) the DAG name is to be included, prepend or append it to the
 			// record number along with the separator.
+			$prevConst = false;
 			for ( $i = 0; $i < strlen( $nameType ); $i++ )
 			{
-				if ( $i > 0 )
+				$thisConst = preg_match( '[1-9]', substr( $nameType, $i, 1 ) );
+				if ( $i > 0 && !$thisConst && ! $prevConst )
 				{
 					$recordName .= $nameSeparator;
 				}
@@ -1306,19 +1302,17 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				}
 				elseif ( substr( $nameType, $i, 1 ) == 'T' ) // timestamp
 				{
-					if ( $timestampTZ == 'U' ) // UTC
-					{
-						$recordName .= gmdate( $timestampFormat );
-					}
-					else // server timezone
-					{
-						$recordName .= date( $timestampFormat );
-					}
+					$recordName .= $timestamp;
 				}
 				elseif ( substr( $nameType, $i, 1 ) == 'F' ) // field value lookup
 				{
 					$recordName .= $suppliedFieldValue;
 				}
+				elseif ( substr( $nameType, $i, 1 ) == '1' ) // constant value
+				{
+					$recordName .= $const1;
+				}
+				$prevConst = $thisConst;
 			}
 			// Prepend the prefix and append the suffix to the record name.
 			$recordName = $namePrefix . $recordName . $nameSuffix;

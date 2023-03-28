@@ -10,6 +10,10 @@ if ( ! $module->canConfigure() )
 
 $listRecordNameTypes = $module->getListRecordNameTypes();
 
+$listRecordNumberingTypes = [ 'A' => 'Arm' ] +
+                            array_diff_key( $module->getListRecordNameTypes(),
+                                            [ 'R' => true, 'C' => true, '1' => true ] );
+
 $listArms = $module->getArms();
 
 // Extract the module settings from the config.json file.
@@ -126,6 +130,14 @@ function makeSettingRow( $field, $name, $type, $choices, $value )
 	{
 		$row .= ' data-type="F"';
 	}
+	elseif ( strpos( $field, 'check-digit' ) !== false )
+	{
+		$row .= ' data-type="C"';
+	}
+	elseif ( $field == 'scheme-const1[]' )
+	{
+		$row .= ' data-type="1"';
+	}
 	elseif ( $field == 'scheme-name-separator[]' )
 	{
 		$row .= ' data-separator="1"';
@@ -151,7 +163,7 @@ function makeSettingRow( $field, $name, $type, $choices, $value )
 	elseif ( $type == 'dropdown' || $type == 'radio' )
 	{
 		$row .= '<select name="' . $field . '">';
-		if ( $type == 'dropdown' || $value == '' )
+		if ( $type == 'dropdown' || ( $value == '' && ! array_key_exists( '', $choices ) ) )
 		{
 			$row .= '<option value=""></option>';
 		}
@@ -162,6 +174,17 @@ function makeSettingRow( $field, $name, $type, $choices, $value )
 			        htmlspecialchars( $choiceLabel ) . '</option>';
 		}
 		$row .= '</select>';
+	}
+	elseif ( $type == 'checkboxes' )
+	{
+		$row .= '<span class="checkboxes" data-field="' . $field . '">';
+		foreach ( $choices as $choiceVal => $choiceLabel )
+		{
+			$row .= '<label><input type="checkbox" data-value="' . $choiceVal . '"' .
+			        ( strpos( $value, $choiceVal) === false ? '' : ' checked' ) . '> ' .
+			        htmlspecialchars( $choiceLabel ) . '</label> ';
+		}
+		$row .= '</span><input type="hidden" name="' . $field . '" value="' . $value . '">';
 	}
 	elseif ( $type == 'multiselect' )
 	{
@@ -315,6 +338,12 @@ foreach ( $listArms as $armID => $armName )
 			$fieldType = 'multiselect';
 			$fieldChoices = $listRecordNameTypes;
 		}
+		elseif ( $fieldName == 'scheme-numbering' )
+		{
+			// The scheme numbering is a checkboxes field.
+			$fieldType = 'checkboxes';
+			$fieldChoices = $listRecordNumberingTypes;
+		}
 		elseif ( $fieldName == 'scheme-number-start' || $fieldName == 'scheme-dag-section' )
 		{
 			// Numeric fields have a 'number' type.
@@ -430,15 +459,40 @@ $(function()
         $(this).css('display','none')
       }
     })
+    var vNumberingCheckboxSet =
+        $(vList).closest('table').find('span[data-field="scheme-numbering[]"]')
+    var vNumberingCheckboxes = vNumberingCheckboxSet.find('input[data-value]')
+    vNumberingCheckboxes.each( function()
+    {
+      var vChkbx = $(this)
+      if ( vChkbx.attr('data-value') == 'A' || vValue.includes( vChkbx.attr('data-value') ) )
+      {
+        vChkbx.parent().css('display','')
+      }
+      else
+      {
+        vChkbx.prop('checked',false)
+        vChkbx.parent().css('display','none')
+      }
+    })
+    vFuncUpdateCheckboxes( vNumberingCheckboxSet )
+  }
+  var vFuncUpdateCheckboxes = function ( vCheckboxSet )
+  {
+    var vValue = $.map($(vCheckboxSet).find('input:checked'),
+                       function(v){return $(v).attr('data-value')}).join('')
+    vCheckboxSet.siblings('input').val(vValue)
   }
   $('head').append('<style type="text/css">.multiselect{margin-bottom:3px;padding:0px}' +
                    '.multiselect li{display:inline-block;cursor:grab;border:solid 1px #000;' +
-                   'background:#eee;margin-right:5px;padding:4px;font-size:small}' +
+                   'background:#eee;margin:0px 5px 7px 0px;padding:4px;font-size:small}' +
                    '.ui-tabs .ui-tabs-nav li.ui-tabs-active .ui-tabs-anchor' +
-                   '{cursor:default;font-weight:bold;color:#000}</style>')
+                   '{cursor:default;font-weight:bold;color:#000}' +
+                   '.checkboxes label{margin-right:10px}</style>')
   $('#modsettings').tabs()
   $('.multiselect').sortable({"update":function(){ vFuncUpdateNameType($(this)) }})
   $('.multiselect :checkbox').click(function(){ vFuncUpdateNameType($(this).closest('ul')) })
+  $('.checkboxes :checkbox').click(function(){ vFuncUpdateCheckboxes($(this).closest('span')) })
   $('.choose-dag-format').each(function()
   {
     var vSelect = $(this)

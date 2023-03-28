@@ -83,6 +83,16 @@
 					"type" : "text"
 				},
 				{
+					"key" : "scheme-const1",
+					"name" : "Constant value",
+					"type" : "text"
+				},
+				{
+					"key" : "scheme-numbering",
+					"name" : "Record numbering",
+					"type" : "text"
+				},
+				{
 					"key" : "scheme-number-start",
 					"name" : "First record number",
 					"type" : "text"
@@ -154,6 +164,14 @@
 					"key" : "scheme-field-lookup-filter",
 					"name" : "Filter records by logic",
 					"type" : "textarea"
+				},
+				{
+					"key" : "scheme-check-digit-algorithm",
+					"name" : "Check digit algorithm",
+					"type" : "dropdown",
+					"choices" : [
+						{ "value" : "mod97", "name" : "mod97" }
+					]
 				},
 				{
 					"key" : "scheme-name-trigger",
