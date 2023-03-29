@@ -1192,6 +1192,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$zeroPad = $this->getProjectSetting( 'scheme-number-pad' )[ $armSettingID ];
 		$timestampFormat = $this->getProjectSetting( 'scheme-timestamp-format' )[ $armSettingID ];
 		$timestampTZ = $this->getProjectSetting( 'scheme-timestamp-tz' )[ $armSettingID ];
+		$chkDigitAlg = $this->getProjectSetting( 'scheme-check-digit-algorithm' )[ $armSettingID ];
 
 		// Get the user supplied component if it has been entered.
 		$suppliedComponent = '';
@@ -1266,7 +1267,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 		// Create the record name.
 		// Loop until an unused record name is generated.
-		// TODO: Handle check digits.
 		while ( true )
 		{
 			$recordName = '';
@@ -1278,44 +1278,100 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 				$recordNumber = str_pad( $recordNumber, $zeroPad, '0', STR_PAD_LEFT );
 			}
-			// If (part of) the DAG name is to be included, prepend or append it to the
-			// record number along with the separator.
-			$prevConst = false;
-			for ( $i = 0; $i < strlen( $nameType ); $i++ )
+			// Determine whether check digits are to be used and the number of runs required to
+			// generate the record name.
+			$checkDigits = '';
+			$hasCheckDigits = ( strpos( $nameType, 'C' ) !== false );
+			if ( $hasCheckDigits )
 			{
-				$thisConst = preg_match( '[1-9]', substr( $nameType, $i, 1 ) );
-				if ( $i > 0 && !$thisConst && ! $prevConst )
+				if ( $chkDigitAlg == 'mod97' )
 				{
-					$recordName .= $nameSeparator;
+					$namingRuns = [1,2];
 				}
-				if ( substr( $nameType, $i, 1 ) == 'G' ) // DAG
-				{
-					$recordName .= $groupCode;
-				}
-				elseif ( substr( $nameType, $i, 1 ) == 'R' ) // record number
-				{
-					$recordName .= $recordNumber;
-				}
-				elseif ( substr( $nameType, $i, 1 ) == 'U' ) // user supplied
-				{
-					$recordName .= $suppliedComponent;
-				}
-				elseif ( substr( $nameType, $i, 1 ) == 'T' ) // timestamp
-				{
-					$recordName .= $timestamp;
-				}
-				elseif ( substr( $nameType, $i, 1 ) == 'F' ) // field value lookup
-				{
-					$recordName .= $suppliedFieldValue;
-				}
-				elseif ( substr( $nameType, $i, 1 ) == '1' ) // constant value
-				{
-					$recordName .= $const1;
-				}
-				$prevConst = $thisConst;
 			}
-			// Prepend the prefix and append the suffix to the record name.
-			$recordName = $namePrefix . $recordName . $nameSuffix;
+			else
+			{
+				$namingRuns = [1];
+			}
+			foreach ( $namingRuns as $namingRun )
+			{
+				// Do any check digit handling required.
+				if ( $hasCheckDigits )
+				{
+					if ( $namingRun == 2 && $chkDigitAlg == 'mod97' )
+					{
+						// Convert record name to uppercase/numbers only.
+						$recordName = preg_replace( '/[^A-Z0-9]/', '', strtoupper($recordName) );
+						// Convert letters to numbers (A=10,B=11,C=12...).
+						$recordName = implode( '', array_map( function($v)
+						                                      {
+						                                          if(ord($v)>64)
+						                                          {
+						                                              return strval(ord($v)-55);
+						                                          }
+						                                          return $v;
+						                                      },
+						                                      str_split( $recordName, 1 ) ) );
+						// Append check digit placeholder.
+						$recordName .= '00';
+						// Calculate mod-97 of converted record name and subtract from 98.
+						while ( strlen( $recordName ) > 2 )
+						{
+							$recordName =
+								substr( '0' . ( intval( substr( $recordName, 0, 9 ) ) % 97 ), -2 ) .
+								substr( $recordName, 9 );
+						}
+						$checkDigits = substr( '0' . ( 98 - intval( $recordName ) ), -2 );
+						// Reset record name to blank.
+						$recordName = '';
+					}
+				}
+				// Build the record name from the components selected, separated by the separator
+				// value (if not constant value).
+				$prevConst = false;
+				for ( $i = 0; $i < strlen( $nameType ); $i++ )
+				{
+					$thisConst = preg_match( '[1-9]', substr( $nameType, $i, 1 ) );
+					if ( $i > 0 && !$thisConst && ! $prevConst )
+					{
+						$recordName .= $nameSeparator;
+					}
+					if ( substr( $nameType, $i, 1 ) == 'G' ) // DAG
+					{
+						$recordName .= $groupCode;
+					}
+					elseif ( substr( $nameType, $i, 1 ) == 'R' ) // record number
+					{
+						$recordName .= $recordNumber;
+					}
+					elseif ( substr( $nameType, $i, 1 ) == 'U' ) // user supplied
+					{
+						$recordName .= $suppliedComponent;
+					}
+					elseif ( substr( $nameType, $i, 1 ) == 'T' ) // timestamp
+					{
+						$recordName .= $timestamp;
+					}
+					elseif ( substr( $nameType, $i, 1 ) == 'F' ) // field value lookup
+					{
+						$recordName .= $suppliedFieldValue;
+					}
+					elseif ( substr( $nameType, $i, 1 ) == 'C' ) // check digits
+					{
+						if ( $namingRun == 2 && $chkDigitAlg == 'mod97' )
+						{
+							$recordName .= $checkDigits;
+						}
+					}
+					elseif ( substr( $nameType, $i, 1 ) == '1' ) // constant value
+					{
+						$recordName .= $const1;
+					}
+					$prevConst = $thisConst;
+				}
+				// Prepend the prefix and append the suffix to the record name.
+				$recordName = $namePrefix . $recordName . $nameSuffix;
+			}
 
 			// Check whether recordName already exists. If it does, and the record number is used
 			// in the record name, increment the record number and try again. Exit the loop if the
