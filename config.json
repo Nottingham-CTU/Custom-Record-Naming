@@ -25,21 +25,6 @@
 	},
 	"project-settings" : [
 		{
-			"key" : "numbering",
-			"name" : "Record numbering",
-			"type" : "radio",
-			"choices" : [
-				{ "value" : "P", "name" : "Project-wide (unique numbers)" },
-				{ "value" : "A", "name" : "Per arm" },
-				{ "value" : "G", "name" : "Per DAG" },
-				{ "value" : "AG", "name" : "Per arm and DAG" },
-				{ "value" : "AG?", "name" : "Per arm (and DAG if used)" },
-				{ "value" : "AF", "name" : "Per arm (and field value if used)" },
-				{ "value" : "AGF", "name" : "Per arm (and DAG/field value if used)" }
-			],
-			"required" : true
-		},
-		{
 			"key" : "dag-format",
 			"name" : "Restrict DAG name format (regular expression)",
 			"type" : "text"

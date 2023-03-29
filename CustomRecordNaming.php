@@ -7,6 +7,45 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 {
 
 
+	// Upgrade settings from older module version if required.
+
+	function redcap_module_system_enable()
+	{
+		// Convert pre v1.4.0 numbering setting to new per-arm format.
+		$queryProjects = $this->query( 'SELECT project_id FROM redcap_external_module_settings ' .
+		                               'WHERE external_module_id = (SELECT external_module_id ' .
+		                               'FROM redcap_external_modules WHERE directory_prefix = ?) ' .
+		                               'AND `key` = ?', [ 'custom_record_naming', 'numbering' ] );
+		$listProjects = [];
+		while ( $infoProject = $queryProjects->fetch_assoc() )
+		{
+			$listProjects[] = $infoProject['project_id'];
+		}
+		foreach ( $listProjects as $projectID )
+		{
+			$numbering = $this->getProjectSetting( 'numbering', $projectID );
+			$schemeNameTypes = $this->getProjectSetting( 'scheme-name-type' );
+			$schemeNumbering = $this->getProjectSetting( 'scheme-settings', $projectID );
+			for ( $i = 0; $i < count( $schemeNumbering ); $i++ )
+			{
+				$schemeRemove = ['P','?'];
+				if ( strpos( $schemeNameTypes[$i], 'G' ) === false )
+				{
+					$schemeRemove[] = 'G';
+				}
+				if ( strpos( $schemeNameTypes[$i], 'F' ) === false )
+				{
+					$schemeRemove[] = 'F';
+				}
+				$schemeNumbering[$i] = str_replace( $schemeRemove, '', $numbering );
+			}
+			$this->setProjectSetting( 'scheme-numbering', $schemeNumbering, $projectID );
+			$this->removeProjectSetting( 'numbering', $projectID );
+			$this->removeProjectSetting( 'project-last-record', $projectID );
+		}
+	}
+
+
 	// Determine whether link to module configuration is shown.
 	function redcap_module_link_check_display( $project_id, $link )
 	{
@@ -136,7 +175,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 				// Get the numbering type, and check the chosen arm to see if DAG based numbering
 				// is in use or the naming scheme for the arm contains the DAG.
-				$numberingType = $this->getProjectSetting( 'numbering' );
+				$numberingType = $this->getProjectSetting( 'scheme-numbering' )[ $armSettingID ];
 				$armNeedsDAG = false;
 				if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
 				             'G' ) !== false )
@@ -147,7 +186,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				// If record numbering is based on Data Access Groups (DAGs) or the naming scheme
 				// contains the DAG, then the user must be in a DAG in order to create a record.
 				// Get the scheme DAG format and check the current DAG matches.
-				if ( $numberingType == 'G' || $numberingType == 'AG' || $armNeedsDAG )
+				if ( strpos( $numberingType, 'G' ) !== false || $armNeedsDAG )
 				{
 					if ( $userGroup === null )
 					{
@@ -865,7 +904,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 
 		$errMsg = '';
-		$clearCounters = false;
 		$listFieldNames = \REDCap::getFieldNames();
 
 		// If the DAG name restriction is specified, check it is a valid regular expression.
@@ -873,29 +911,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		     preg_match( $this->makePcreString( $settings['dag-format'] ), '' ) === false )
 		{
 			$errMsg .= "\n- Invalid regular expression for restrict DAG name format";
-		}
-
-		// Ensure that a setting is present for record numbering. This setting cannot be changed
-		// once records exist (in production), as the record counter(s) would then be invalid.
-		// While the project is in development status, the record numbering can always be changed
-		// for convenience, even though this could cause issues. In this case, the record counters
-		// will be reset to mitigate these issues.
-		if ( ! isset( $settings['numbering'] ) || $settings['numbering'] == '' )
-		{
-			$errMsg .= "\n- Value required for record numbering";
-		}
-		elseif ( $settings['numbering'] != $this->getProjectSetting( 'numbering' ) &&
-		         $this->countRecords() > 0 )
-		{
-			if ( method_exists( $this->framework, 'getProjectStatus' ) &&
-			     $this->framework->getProjectStatus() == 'DEV' )
-			{
-				$clearCounters = true;
-			}
-			else
-			{
-				$errMsg .= "\n- Record numbering cannot be changed once records exist";
-			}
 		}
 
 		// Validate the settings for each custom naming scheme.
@@ -922,11 +937,19 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$errMsg .= "\n- Naming scheme " . ($i + 1) .
 				           ": Value required for record name type";
 			}
-			elseif ( in_array( $settings['numbering'], [ 'G', 'AG' ] ) &&
-			         strpos( $settings['scheme-name-type'][$i], 'G' ) === false )
+			elseif ( ! empty( array_diff( str_split( $settings['scheme-numbering'][$i], 1 ),
+			                     ( ['A'] + str_split( $settings['scheme-name-type'][$i], 1 ) ) ) ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) . ": Record name type" .
-				           " must include DAG if per DAG numbering used";
+				$errMsg .= "\n- Naming scheme " . ($i + 1) . ": Record numbering can only use" .
+				           " the selected record name types";
+			}
+
+			// Ensure that the constant value has been set if selected.
+			if ( strpos( $settings['scheme-name-type'][$i], '1' ) !== false &&
+			     $settings['scheme-const1'][$i] == '' )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": Constant value cannot be blank if constant value used";
 			}
 
 			// Ensure that the starting number, if set, is a positive integer.
@@ -1060,19 +1083,20 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				           ": The specified lookup description field does not exist";
 			}
 
+			// Ensure that the check digit algorithm is provided if the record name type includes
+			// check digits.
+			if ( strpos( $settings['scheme-name-type'][$i], 'C' ) !== false &&
+			     $settings['scheme-check-digit-algorithm'][$i] == '' )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": Check digit algorithm cannot be blank if check digits used";
+			}
+
 		}
 
 		if ( $errMsg != '' )
 		{
 			return "Your record naming configuration contains errors:$errMsg";
-		}
-
-		if ( $clearCounters )
-		{
-			// Clear the record counter.
-			$this->setProjectSetting( 'project-record-counter', '{}' );
-			// Clear the last created record.
-			$this->setProjectSetting( 'project-last-record', '{}' );
 		}
 
 		return null;
