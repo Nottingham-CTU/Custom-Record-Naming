@@ -166,6 +166,22 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				}
 			}
 
+			// If a new record is being submitted, check that the record name is still unused. If
+			// it is not, then generate a new one.
+			if ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 19 ) == 'DataEntry/index.php' &&
+				 isset( $_POST[ 'module-custom-record-naming-new-record' ] ) )
+			{
+				unset( $_POST[ 'module-custom-record-naming-new-record' ] );
+				$newRecordName =
+						$this->generateRecordName( $armID, $armSettingID, $groupCode, null, true );
+				if ( $this->countRecords( $_POST[ \REDCap::getRecordIdField() ] ) > 0 )
+				{
+					$_POST[ \REDCap::getRecordIdField() ] = $newRecordName;
+				}
+				setcookie( 'redcap_custom_record_name', '', 1, '', '', true );
+				setcookie( 'redcap_custom_record_name_fieldval', '', 1, '', '', true );
+			}
+
 			// When an ID is assigned to the record (whether by this module or REDCap), tell REDCap
 			// that auto incrementing record IDs are not being used. This ensures that the 'auto'
 			// query string parameter is not re-inserted during a redirect.
@@ -201,8 +217,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				{
 					// Clear the record counter.
 					$this->setProjectSetting( 'project-record-counter', '{}' );
-					// Clear the last created record.
-					$this->setProjectSetting( 'project-last-record', '{}' );
 				}
 
 				// Generate the new record name.
@@ -460,10 +474,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		// On the data entry form, if the record is new (no data saved yet), if the user is in a
 		// DAG and the 'assign record to DAG' drop down is present (this likely only applies to
 		// administrators) then ensure the drop down is set to the user's DAG.
-		// Send an ajax request to the ajax_keepalive.php file every 30 seconds, so that the
-		// record ID is reserved while the form is being completed. If the user navigates away from
-		// the form without saving, the record ID can be reused after 90 seconds (unless the next
-		// record ID has already been used or reserved).
+		// Denote the record as new so the module can check the record name is still unused upon
+		// submission.
 		if ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 19 ) == 'DataEntry/index.php' &&
 			 isset( $_GET[ 'id' ] ) && $this->countRecords( $_GET[ 'id' ] ) == 0 )
 		{
@@ -487,19 +499,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 
 ?>
-    var vFuncKeepAlive = function ()
-    {
-      $.ajax( { url : '<?php echo $this->getUrl( 'ajax_keepalive.php' ); ?>',
-                method : 'POST',
-                data : { record : '<?php $this->echoText( addslashes( $_GET['id'] ) ); ?>',
-                         arm : '<?php echo $this->getArmIdFromNum( $_GET['arm'] ?? 1 ); ?>',
-                         dag : '<?php echo $this->groupCode ?? ''; ?>' },
-                headers : { 'X-RC-CRN-Req' : '1' },
-                dataType : 'json'
-              } )
-    }
-    vFuncKeepAlive()
-    setInterval( vFuncKeepAlive, 30000 )
+    $('input[name="<?php echo \REDCap::getRecordIdField(); ?>"]').after(
+                    '<input type="hidden" name="module-custom-record-naming-new-record" value="1">')
   })
 </script>
 <?php
@@ -619,6 +620,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 		// Perform the record rename and DAG assignment.
 		$newRecordID = $this->performSurveyRename( $record, $event_id );
+		setcookie( 'redcap_custom_record_name', '', 1, '', '', true );
+		setcookie( 'redcap_custom_record_name_fieldval', '', 1, '', '', true );
 		// Remove the survey record's first submit timestamp, so that the user is able to load the
 		// survey again after rename in order to complete it.
 		$this->query( 'UPDATE redcap_surveys_response SET first_submit_time = NULL ' .
@@ -646,6 +649,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 		// Perform the record rename and DAG assignment.
 		$this->performSurveyRename( $record, $event_id );
+		setcookie( 'redcap_custom_record_name', '', 1, '', '', true );
+		setcookie( 'redcap_custom_record_name_fieldval', '', 1, '', '', true );
 		$_SESSION['module_customrecordnaming_resubmit'] = time();
 	}
 
@@ -845,6 +850,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
                  'T' => 'Timestamp',
                  'F' => 'Field value lookup',
                  'C' => 'Check digits',
+                 'Z' => 'Username',
                  '1' => 'Constant value' ];
 	}
 
@@ -1179,7 +1185,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 	// Generate a new record name.
-	protected function generateRecordName( $armID, $armSettingID, $groupCode, $oldName = null )
+	protected function generateRecordName( $armID, $armSettingID, $groupCode,
+	                                       $oldName = null, $incrementCounter = false )
 	{
 		// Get the scheme settings for the arm.
 		$numbering = $this->getProjectSetting( 'scheme-numbering' )[ $armSettingID ];
@@ -1199,7 +1206,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( isset( $_COOKIE[ 'redcap_custom_record_name' ] ) )
 		{
 			$suppliedComponent = $_COOKIE[ 'redcap_custom_record_name' ];
-			setcookie( 'redcap_custom_record_name', '', 1, '', '', true );
 		}
 
 		// Get the timestamp (UTC or server timezone) if required.
@@ -1215,8 +1221,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( isset( $_COOKIE[ 'redcap_custom_record_name_fieldval' ] ) )
 		{
 			$suppliedFieldValue = $_COOKIE[ 'redcap_custom_record_name_fieldval' ];
-			setcookie( 'redcap_custom_record_name_fieldval', '', 1, '', '', true );
 		}
+
+		// Get the user's username.
+		$currentUser = ( USERID == '[survey respondent]' ? '' : USERID );
 
 		// Determine the record number using the record counter.
 		$counterID = 'project';
@@ -1225,7 +1233,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$counterID = "$armID";
 		}
 		foreach ( [ 'G' => "$groupCode", 'U' => $suppliedComponent, 'T' => $timestamp,
-		            'F' => $suppliedFieldValue ] as $numberingCode => $counterComponent )
+		            'F' => $suppliedFieldValue, 'Z' => $currentUser ]
+		          as $numberingCode => $counterComponent )
 		{
 			if ( strpos( $numbering, $numberingCode ) !== false )
 			{
@@ -1233,7 +1242,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 		}
 		$recordCounter = json_decode( $this->getProjectSetting( 'project-record-counter' ), true );
-		$lastRecord = json_decode( $this->getProjectSetting( 'project-last-record' ), true );
 
 		// If the record counter has not been started yet, set to the starting number.
 		if ( ! isset( $recordCounter[ $counterID ] ) )
@@ -1246,23 +1254,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 				$recordCounter[ $counterID ] = intval( $startNum );
 			}
-			$lastRecord[ $counterID ] = [ 'name' => '', 'timestamp' => 0, 'user' => '' ];
 			$this->setProjectSetting( 'project-record-counter', json_encode( $recordCounter ) );
-			$this->setProjectSetting( 'project-last-record', json_encode( $lastRecord ) );
-		}
-
-		// Check if the last record was successfully created, and increment the record counter if
-		// so. Treat the last record as created if the timestamp value is within the last 90
-		// seconds. This ensures that if 2 users add records at roughly the same time, that
-		// different record names will be assigned. A 'keepalive' script will update the timestamp
-		// while data for the named record is being entered until the record has been saved.
-		$currentUser = ( USERID == '[survey respondent]' ? '' : USERID );
-		if ( $lastRecord[ $counterID ][ 'timestamp' ] > 0 &&
-		     ( ( $lastRecord[ $counterID ][ 'timestamp' ] > time() - 90 &&
-		         ( $currentUser == '' || $currentUser != $lastRecord[ $counterID ][ 'user' ] ) ) ||
-		       $this->countRecords( $lastRecord[ $counterID ][ 'name' ] ) > 0 ) )
-		{
-			$recordCounter[ $counterID ]++;
 		}
 
 		// Create the record name.
@@ -1363,6 +1355,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 							$recordName .= $checkDigits;
 						}
 					}
+					elseif ( substr( $nameType, $i, 1 ) == 'Z' ) // username
+					{
+						$recordName .= $currentUser;
+					}
 					elseif ( substr( $nameType, $i, 1 ) == '1' ) // constant value
 					{
 						$recordName .= $const1;
@@ -1389,10 +1385,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 
 		// Set the new record counter and last record values.
-		$lastRecord[ $counterID ] = [ 'name' => $recordName, 'timestamp' => time(),
-		                              'user' => $currentUser ];
+		if ( $incrementCounter )
+		{
+			$recordCounter[ $counterID ]++;
+		}
 		$this->setProjectSetting( 'project-record-counter', json_encode( $recordCounter ) );
-		$this->setProjectSetting( 'project-last-record', json_encode( $lastRecord ) );
 
 		return $recordName;
 
@@ -1542,8 +1539,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		{
 			// Clear the record counter.
 			$this->setProjectSetting( 'project-record-counter', '{}' );
-			// Clear the last created record.
-			$this->setProjectSetting( 'project-last-record', '{}' );
 		}
 
 		$dagID = $this->dagQueryID( $_GET['dag'], true );
@@ -1562,7 +1557,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$groupCode = $this->getGroupCode( $dagID, $armSettingID );
 		$groupCode = ( $groupCode === false ) ? '' : $groupCode;
 
-		$newRecordID = $this->generateRecordName( $armID, $armSettingID, $groupCode, $oldRecordID );
+		$newRecordID =
+			$this->generateRecordName( $armID, $armSettingID, $groupCode, $oldRecordID, true );
 		if ( $dagID !== '' )
 		{
 			$this->setDAG( $oldRecordID, $dagID );
