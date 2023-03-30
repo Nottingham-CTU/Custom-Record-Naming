@@ -12,15 +12,16 @@ if ( ! $module->getUser()->isSuperUser() )
 	exit;
 }
 
-$listRecordNameTypes = $module->getListRecordNameTypes();
+$listRecordNameTypes = [ 'A' => 'Arm' ] + $module->getListRecordNameTypes();
 
 // Define setting names for export/import.
-$globalSettingNames = [ 'numbering', 'dag-format', 'dag-format-notice' ];
-$schemeSettingNames = [ 'name-type', 'name-prefix', 'name-separator', 'name-suffix', 'number-start',
-                        'number-pad', 'dag-format', 'dag-section', 'prompt-user-supplied',
-                        'user-supplied-format', 'timestamp-format', 'timestamp-tz',
-                        'prompt-field-lookup', 'field-lookup-value', 'field-lookup-desc',
-                        'field-lookup-filter' ];
+$globalSettingNames = [ 'dag-format', 'dag-format-notice' ];
+$schemeSettingNames = [ 'name-type', 'name-prefix', 'name-separator', 'name-suffix', 'const1',
+                        'numbering', 'number-start', 'number-pad', 'dag-format', 'dag-section',
+                        'prompt-user-supplied', 'user-supplied-format', 'timestamp-format',
+                        'timestamp-tz', 'prompt-field-lookup', 'field-lookup-value',
+                        'field-lookup-desc', 'field-lookup-filter', 'check-digit-algorithm',
+                        'name-trigger', 'allow-new', 'instrument' ];
 
 
 // Export the data.
@@ -119,7 +120,7 @@ if ( isset( $_FILES['import'] ) )
 				{
 					$settingCompare[$armName][$setting]['old'] =
 						$module->getProjectSetting( "scheme-$setting" )[$i];
-					if ( $setting == 'name-type' )
+					if ( $setting == 'name-type' || $setting == 'numbering' )
 					{
 						$settingCompare[$armName][$setting]['old'] =
 							array_reduce( str_split( $settingCompare[$armName][$setting]['old'] ),
@@ -142,7 +143,7 @@ if ( isset( $_FILES['import'] ) )
 				foreach ( $schemeSettingNames as $setting )
 				{
 					$settingCompare[$armName][$setting]['new'] = $armData[$setting];
-					if ( $setting == 'name-type' )
+					if ( $setting == 'name-type' || $setting == 'numbering' )
 					{
 						$settingCompare[$armName][$setting]['new'] =
 							array_reduce( str_split( $settingCompare[$armName][$setting]['new'] ),
