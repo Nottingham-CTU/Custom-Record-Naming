@@ -174,8 +174,14 @@
 					"type" : "radio",
 					"choices" : [
 						{ "value" : "", "name" : "Always (default)" },
+						{ "value" : "C", "name" : "Always, enforce complete status on first submission" },
 						{ "value" : "S", "name" : "On surveys only" }
 					]
+				},
+				{
+					"key" : "scheme-instrument",
+					"name" : "Load data entry form",
+					"type" : "text"
 				}
 			]
 		},

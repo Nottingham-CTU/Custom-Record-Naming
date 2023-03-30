@@ -15,6 +15,23 @@ $listRecordNumberingTypes = [ 'A' => 'Arm' ] +
                                             [ 'R' => true, 'C' => true, '1' => true ] );
 
 $listArms = $module->getArms();
+$listEvents = \REDCap::getEventNames( false, false );
+$listEventsUN = \REDCap::getEventNames( true, false );
+$listInstruments = \REDCap::getInstrumentNames();
+
+$listEventInstruments = [];
+foreach ( $listArms as $armID => $armName )
+{
+	$listArmEventInstruments = [];
+	foreach ( $module->getInstrumentEventMapping( $armID ) as $eventInstrument )
+	{
+		$listArmEventInstruments[ $listEventsUN[ $eventInstrument['event_id'] ] . ':' .
+		                                                    $eventInstrument['instrument'] ] =
+				$listEvents[ $eventInstrument['event_id'] ] . ' : ' .
+				$listInstruments[ $eventInstrument['instrument'] ];
+	}
+	$listEventInstruments[ $armID ] = $listArmEventInstruments;
+}
 
 // Extract the module settings from the config.json file.
 $projectSettingsConfig = $module->getConfig()['project-settings'];
@@ -372,6 +389,12 @@ foreach ( $listArms as $armID => $armName )
 			// For the server timestamp option, show the current server timestamp.
 			$fieldChoices['S'] .= ' (' . date('e') . ')';
 		}
+		elseif ( $fieldName == 'scheme-instrument' )
+		{
+			// Provide the events/instruments dropdown for the data entry form to load after naming.
+			$fieldType = 'dropdown';
+			$fieldChoices = $listEventInstruments[ $armID ];
+		}
 		$value = ( $valueIndex === false ? '' : $setting['value'][ $valueIndex ] );
 		echo makeSettingRow( $fieldName.'[]', $setting['name'], $fieldType, $fieldChoices, $value );
 		if ( $fieldName == 'scheme-name-trigger' )
@@ -381,6 +404,13 @@ foreach ( $listArms as $armID => $armName )
 			     ' when a record is being named in REDCap format should be avoided if the custom ',
 			     'format can match the REDCap format (one number or two numbers separated by a ',
 			     'dash) as desired record names could be blocked.</td></tr>';
+		}
+		elseif ( strpos( $fieldName, 'scheme-const' ) === 0 )
+		{
+			// Add a note after the constant field.
+			echo '<tr data-type="', substr( $fieldName, 12 ), '"><td></td><td style="',
+			     'font-size:x-small">Note: A separator will not be included around a constant ',
+			     'value.</td></tr>';
 		}
 	}
 	if ( $firstArm )

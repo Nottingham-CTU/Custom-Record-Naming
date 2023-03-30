@@ -81,6 +81,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$this->fieldLookupList = null;
 		$this->userGroup = null;
 		$this->groupCode = null;
+		$this->allowNew = '';
 
 		// Perform a redirect when a new record is created to use the appropriate participant ID.
 		if ( defined( 'PROJECT_ID' ) && defined( 'USERID' ) &&
@@ -92,6 +93,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$this->userGroup = $userGroup;
 
 			$armNum = 1;
+			$armID = null;
 			if ( isset( $_GET['arm'] ) && is_numeric( $_GET['arm'] ) )
 			{
 				$armNum = $_GET['arm'];
@@ -106,8 +108,15 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 					$armNum = $savedArmNum;
 				}
 			}
+			elseif ( isset( $_GET['event_id'] ) && is_numeric( $_GET['event_id'] ) )
+			{
+				$armID = $this->getArmIdFromEventId( $_GET['event_id'] );
+			}
 
-			$armID = $this->getArmIdFromNum( $armNum ); // arm ID or NULL
+			if ( $armID === null )
+			{
+				$armID = $this->getArmIdFromNum( $armNum ); // arm ID or NULL
+			}
 			if ( isset( $GLOBALS['multiple_arms'] ) && ! $GLOBALS['multiple_arms'] &&
 			     count( $this->listArmIdNum ) == 1 )
 			{
@@ -160,10 +169,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 					$triggerOnMismatch = ( is_array( $schemeTriggerOn ) &&
 					                       isset( $schemeTriggerOn[ $armSettingID ] ) )
 					                     ? ( $schemeTriggerOn[ $armSettingID ] == 'M' ) : false;
-					$schemeAllowNew = $this->getProjectSetting( 'scheme-allow-new' );
-					$schemeAllowNew = ( is_array( $schemeAllowNew ) &&
-					                    isset( $schemeAllowNew[ $armSettingID ] ) )
-					                  ? ( $schemeAllowNew[ $armSettingID ] != 'S' ) : true;
+					$this->allowNew = $this->getProjectSetting( 'scheme-allow-new' );
+					$this->allowNew = ( is_array( $this->allowNew ) &&
+					                    isset( $this->allowNew[ $armSettingID ] ) )
+					                  ? $this->allowNew[ $armSettingID ] : '';
+					$schemeAllowNew = ( $this->allowNew != 'S' );
 					if ( ! $schemeAllowNew )
 					{
 						$this->canAddRecord = false;
@@ -271,12 +281,31 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				// Generate the new record name.
 				$recordName = $this->generateRecordName( $armID, $armSettingID, $groupCode );
 
+				// Get the data entry form to load, if applicable.
+				$loadInstrument = $this->getProjectSetting( 'scheme-instrument' );
+				$loadInstrument = ( is_array( $loadInstrument ) &&
+				                     isset( $loadInstrument[ $armSettingID ] ) )
+				                   ? $loadInstrument[ $armSettingID ] : '';
+				$loadInstrument = explode( ':', $loadInstrument );
+				if ( count( $loadInstrument ) == 2 )
+				{
+					$loadInstrument[0] =
+						array_search( $loadInstrument[0], \REDCap::getEventNames( true, false ) );
+					$loadInstrument =
+						'&event_id=' . $loadInstrument[0] . '&page=' . $loadInstrument[1];
+				}
+				else
+				{
+					$loadInstrument = '';
+				}
+
 				// Regenerate the URL query string using the new record name and removing the 'auto'
 				// parameter, and perform a redirect to the new URL.
 				$queryString = '';
 				foreach ( $_GET as $name => $val )
 				{
-					if ( $name == 'auto' )
+					if ( $name == 'auto' ||
+					     ( $loadInstrument == '' && in_array( $name, [ 'arm', 'pnid' ] ) ) )
 					{
 						continue;
 					}
@@ -291,7 +320,15 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 						$queryString .= rawurlencode( $val );
 					}
 				}
-				$this->redirect( PAGE_FULL . $queryString );
+				if ( $loadInstrument == '' )
+				{
+					$this->redirect( PAGE_FULL . $queryString );
+				}
+				else
+				{
+					$this->redirect( str_replace( 'record_home.php', 'index.php', PAGE_FULL ) .
+					                 $queryString . $loadInstrument );
+				}
 			}
 		}
 
@@ -550,6 +587,19 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 ?>
     $('input[name="<?php echo \REDCap::getRecordIdField(); ?>"]').after(
                     '<input type="hidden" name="module-custom-record-naming-new-record" value="1">')
+<?php
+
+			if ( $this->allowNew == 'C' )
+			{
+
+?>
+    $('select[name="<?php echo $this->escapeHTML( $_GET['page'] );
+?>_complete"] option:not([value="2"])').remove()
+<?php
+
+			}
+
+?>
   })
 </script>
 <?php
@@ -948,7 +998,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				           ": Value required for record name type";
 			}
 			elseif ( ! empty( array_diff( str_split( $settings['scheme-numbering'][$i], 1 ),
-			                  ( ['','A'] + str_split( $settings['scheme-name-type'][$i], 1 ) ) ) ) )
+			                              array_merge( ['','A'],
+			                               str_split( $settings['scheme-name-type'][$i], 1 ) ) ) ) )
 			{
 				$errMsg .= "\n- Naming scheme " . ($i + 1) . ": Record numbering can only use" .
 				           " the selected record name types";
@@ -1141,6 +1192,27 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 		}
 		return null;
+	}
+
+
+
+	public function getInstrumentEventMapping( $armID )
+	{
+		$projectID = $this->getProjectId();
+		$result = [];
+		if ( $projectID != null )
+		{
+			$res = $this->query( 'SELECT ef.event_id, ef.form_name FROM redcap_events_forms ef ' .
+			                     'JOIN redcap_events_metadata em ON ef.event_id = em.event_id ' .
+			                     'WHERE em.arm_id = ? ORDER BY em.day_offset, ( SELECT ' .
+			                     'min(field_order) FROM redcap_metadata WHERE form_name = ' .
+			                     'ef.form_name AND project_id = ? );', [ $armID, PROJECT_ID ] );
+			while ( $row = $res->fetch_row() )
+			{
+				$result[] = [ 'event_id' => $row[0], 'instrument' => $row[1] ];
+			}
+		}
+		return $result;
 	}
 
 
@@ -1687,6 +1759,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	private $listArmIdEvent;
 	private $userGroup;
 	private $groupCode;
+	private $allowNew;
 
 }
 
