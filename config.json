@@ -164,7 +164,8 @@
 					"type" : "radio",
 					"choices" : [
 						{ "value" : "", "name" : "On auto numbering (default)" },
-						{ "value" : "R", "name" : "On auto numbering and when naming in REDCap format" }
+						{ "value" : "R", "name" : "On auto numbering and when naming in REDCap format" },
+						{ "value" : "M", "name" : "On auto numbering and upon prefix/suffix mismatch" }
 					]
 				},
 				{

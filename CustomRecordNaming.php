@@ -114,6 +114,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$armID = array_values( $this->listArmIdNum )[0];
 			}
 			$armSettingID = null;
+			$schemePrefix = '';
+			$schemeSuffix = '';
 
 			// If the arm ID cannot be determined, a record cannot be created.
 			if ( $armID === null )
@@ -149,10 +151,15 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 								$this->getProjectSetting( 'scheme-field-lookup-desc' )[ $armSettingID ],
 								$this->getProjectSetting( 'scheme-field-lookup-filter' )[ $armSettingID ] );
 					}
-					$triggerOnRCName = $this->getProjectSetting( 'scheme-name-trigger' );
-					$triggerOnRCName = ( is_array( $triggerOnRCName ) &&
-					                     isset( $triggerOnRCName[ $armSettingID ] ) )
-					                   ? ( $triggerOnRCName[ $armSettingID ] == 'R' ) : false;
+					$schemePrefix = $this->getProjectSetting( 'scheme-name-prefix' )[ $armSettingID ];
+					$schemeSuffix = $this->getProjectSetting( 'scheme-name-suffix' )[ $armSettingID ];
+					$schemeTriggerOn = $this->getProjectSetting( 'scheme-name-trigger' );
+					$triggerOnRCName = ( is_array( $schemeTriggerOn ) &&
+					                     isset( $schemeTriggerOn[ $armSettingID ] ) )
+					                   ? ( $schemeTriggerOn[ $armSettingID ] == 'R' ) : false;
+					$triggerOnMismatch = ( is_array( $schemeTriggerOn ) &&
+					                       isset( $schemeTriggerOn[ $armSettingID ] ) )
+					                     ? ( $schemeTriggerOn[ $armSettingID ] == 'M' ) : false;
 					$schemeAllowNew = $this->getProjectSetting( 'scheme-allow-new' );
 					$schemeAllowNew = ( is_array( $schemeAllowNew ) &&
 					                    isset( $schemeAllowNew[ $armSettingID ] ) )
@@ -233,7 +240,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// record ID is in use. This will need to be replaced by the module generated record ID.
 			if ( isset( $_GET[ 'auto' ] ) ||
 			     ( $armSettingID !== null && $triggerOnRCName && isset( $_GET[ 'id' ] ) &&
-			       preg_match( '/^([1-9][0-9]*-)?[1-9][0-9]*$/', $_GET[ 'id' ] ) ) )
+			       preg_match( '/^([1-9][0-9]*-)?[1-9][0-9]*$/', $_GET[ 'id' ] ) ) ||
+			     ( $armSettingID !== null && $triggerOnMismatch && isset( $_GET[ 'id' ] ) &&
+			       ( strpos( $_GET[ 'id' ], $schemePrefix ) !== 0 ||
+			         strpos( strrev( $_GET[ 'id' ] ), strrev( $schemeSuffix ) ) !== 0 ) ) )
 			{
 				// If the record cannot be created, redirect back to the add/edit records page.
 				// This shouldn't usually be invoked, as the add new record button will be replaced
@@ -929,8 +939,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 			$definedArms[] = $settings['scheme-arm'][$i];
 
-			// Ensure that the record name type has been set, and that it includes the DAG if per
-			// DAG numbering is being used.
+			// Ensure that the record name type has been set, and that the numbering does not
+			// include components not used in the name.
 			if ( ! isset( $settings['scheme-name-type'][$i] ) ||
 			     $settings['scheme-name-type'][$i] == '' )
 			{
@@ -938,7 +948,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				           ": Value required for record name type";
 			}
 			elseif ( ! empty( array_diff( str_split( $settings['scheme-numbering'][$i], 1 ),
-			                     ( ['A'] + str_split( $settings['scheme-name-type'][$i], 1 ) ) ) ) )
+			                  ( ['','A'] + str_split( $settings['scheme-name-type'][$i], 1 ) ) ) ) )
 			{
 				$errMsg .= "\n- Naming scheme " . ($i + 1) . ": Record numbering can only use" .
 				           " the selected record name types";

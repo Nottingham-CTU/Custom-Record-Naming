@@ -377,11 +377,10 @@ foreach ( $listArms as $armID => $armName )
 		if ( $fieldName == 'scheme-name-trigger' )
 		{
 			// Add a note after the trigger field.
-			echo '<tr><td></td><td style="font-size:x-small">Triggering the custom naming when ',
-			     'a record is being named in REDCap format can increase the reliability of custom ',
-			     'record naming. However if the custom format can match the REDCap format (one ',
-			     'number or two numbers separated by a dash) this setting should be left as ',
-			     'default to avoid desired record names being blocked.</td></tr>';
+			echo '<tr><td></td><td style="font-size:x-small">Note: Triggering custom record naming',
+			     ' when a record is being named in REDCap format should be avoided if the custom ',
+			     'format can match the REDCap format (one number or two numbers separated by a ',
+			     'dash) as desired record names could be blocked.</td></tr>';
 		}
 	}
 	if ( $firstArm )
