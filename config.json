@@ -10,6 +10,7 @@
 		}
 	],
 	"permissions": [
+		"redcap_module_system_enable",
 		"redcap_every_page_before_render",
 		"redcap_every_page_top",
 		"redcap_survey_page_top",

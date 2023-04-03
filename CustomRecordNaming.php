@@ -11,11 +11,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 	function redcap_module_system_enable()
 	{
+		$moduleDirPrefix = preg_replace( '/_v[^_]*$/', '', $this->getModuleDirectoryName() );
 		// Convert pre v1.4.0 numbering setting to new per-arm format.
 		$queryProjects = $this->query( 'SELECT project_id FROM redcap_external_module_settings ' .
 		                               'WHERE external_module_id = (SELECT external_module_id ' .
 		                               'FROM redcap_external_modules WHERE directory_prefix = ?) ' .
-		                               'AND `key` = ?', [ 'custom_record_naming', 'numbering' ] );
+		                               'AND `key` = ?', [ $moduleDirPrefix, 'numbering' ] );
 		$listProjects = [];
 		while ( $infoProject = $queryProjects->fetch_assoc() )
 		{
@@ -24,8 +25,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		foreach ( $listProjects as $projectID )
 		{
 			$numbering = $this->getProjectSetting( 'numbering', $projectID );
-			$schemeNameTypes = $this->getProjectSetting( 'scheme-name-type' );
-			$schemeNumbering = $this->getProjectSetting( 'scheme-settings', $projectID );
+			$schemeNameTypes = $this->getProjectSetting( 'scheme-name-type', $projectID );
+			$schemeNumbering = $this->getProjectSetting( 'scheme-arm', $projectID );
+			$schemeSettings = [];
 			for ( $i = 0; $i < count( $schemeNumbering ); $i++ )
 			{
 				$schemeRemove = ['P','?'];
@@ -38,8 +40,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 					$schemeRemove[] = 'F';
 				}
 				$schemeNumbering[$i] = str_replace( $schemeRemove, '', $numbering );
+				$schemeSettings[] = 'true';
 			}
 			$this->setProjectSetting( 'scheme-numbering', $schemeNumbering, $projectID );
+			$this->setProjectSetting( 'scheme-settings', $schemeSettings, $projectID );
 			$this->removeProjectSetting( 'numbering', $projectID );
 			$this->removeProjectSetting( 'project-last-record', $projectID );
 		}
@@ -110,6 +114,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 			elseif ( isset( $_GET['event_id'] ) && is_numeric( $_GET['event_id'] ) )
 			{
+				$this->getArmIdFromNum( null );
 				$armID = $this->getArmIdFromEventId( $_GET['event_id'] );
 			}
 

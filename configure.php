@@ -40,8 +40,7 @@ $listArmSettings = [];
 foreach ( $projectSettingsConfig as $settingConfig )
 {
 	if ( $settingConfig['type'] == 'descriptive' ||
-	     $settingConfig['key'] == 'project-record-counter' ||
-	     $settingConfig['key'] == 'project-last-record' )
+	     $settingConfig['key'] == 'project-record-counter' )
 	{
 		continue;
 	}
@@ -113,7 +112,8 @@ if ( ! empty( $_POST ) )
 	{
 		foreach ( $_POST as $field => $value )
 		{
-			if ( isset( $listProjectSettings[ $field ] ) || isset( $listArmSettings[ $field ] ) )
+			if ( isset( $listProjectSettings[ $field ] ) || isset( $listArmSettings[ $field ] ) ||
+			     $field == 'scheme-settings' )
 			{
 				$module->setProjectSetting( $field, $value );
 			}
@@ -476,6 +476,10 @@ $(function()
     if ( vValue.includes('G') )
     {
       vBranchedFields.find('.choose-dag-format').change()
+    }
+    if ( ! vValue.includes( 'C' ) )
+    {
+      $(vList).closest('table').find('select[name="scheme-check-digit-algorithm[]"]').val('')
     }
     $(vList).closest('table').find('[data-separator]').each( function()
     {
