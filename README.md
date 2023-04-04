@@ -191,6 +191,9 @@ Optionally limit creation of records on the arm.
 * **On surveys only**<br>
   Prohibit the creation of new records except via public surveys.
 
+### Load data entry form
+Specify a data entry form to load when a new record is created (instead of the record home page).
+
 ## Administrative options
 Administrators have access to the following features, which are accessible via links in the module
 configuration.
