@@ -76,6 +76,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			return;
 		}
 
+		// For survey pages, check if a 'dag' query string parameter is specified and if so set a
+		// cookie to match (in case the parameter is dropped during the submission process).
+		if ( $this->isSurveyPage() && isset( $_GET['dag'] ) )
+		{
+			setcookie( 'custom-record-naming-survey-dag',
+			           $_GET['dag'], time() + 60, '', '', true, true );
+		}
+
 		$this->canAddRecord = true;
 		$this->hasSettingsForArm = true;
 		$this->blockedBySettings = false;
@@ -1687,7 +1695,15 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$this->setProjectSetting( 'project-record-counter', '{}' );
 		}
 
-		$dagID = $this->dagQueryID( $_GET['dag'], true );
+		if ( ! isset( $_GET['dag'] ) && isset( $_COOKIE['custom-record-naming-survey-dag'] ) )
+		{
+			$dagID = $_COOKIE['custom-record-naming-survey-dag'];
+		}
+		else
+		{
+			$dagID = $_GET['dag'];
+		}
+		$dagID = $this->dagQueryID( $dagID, true );
 		$dagID = ( $dagID === false ) ? '' : $dagID;
 		$armID = $this->getArmIdFromEventId( $eventID );
 
