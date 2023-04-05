@@ -233,10 +233,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				 isset( $_POST[ 'module-custom-record-naming-new-record' ] ) )
 			{
 				unset( $_POST[ 'module-custom-record-naming-new-record' ] );
+				$submittedRecordName = $_POST[ \REDCap::getRecordIdField() ];
 				$newRecordName =
 						$this->generateRecordName( $armID, $armSettingID, $groupCode, null, true );
-				if ( $this->countRecords( $_POST[ \REDCap::getRecordIdField() ] ) > 0 )
+				if ( $this->countRecords( $submittedRecordName ) > 0 &&
+				     $submittedRecordName != $newRecordName )
 				{
+					$_SESSION['module_customrecordnaming_amended'] =
+									[ $submittedRecordName, $newRecordName ];
 					$_POST[ \REDCap::getRecordIdField() ] = $newRecordName;
 				}
 				setcookie( 'redcap_custom_record_name', '', 1, '', '', true );
@@ -310,7 +314,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				foreach ( $_GET as $name => $val )
 				{
 					if ( $name == 'auto' ||
-					     ( $loadInstrument == '' && in_array( $name, [ 'arm', 'pnid' ] ) ) )
+					     ( $loadInstrument != '' && in_array( $name, [ 'arm', 'pnid' ] ) ) )
 					{
 						continue;
 					}
@@ -706,6 +710,37 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 			}
 		} // End public survey links content.
+
+
+
+		// If the module had to amend a record name because the name already exists, notify the
+		// user of the updated record name.
+		if ( isset( $_SESSION['module_customrecordnaming_amended'] ) )
+		{
+
+?>
+<script type="text/javascript">
+  $(function()
+  {
+    var vDialog = $('<div><p>The record <?php
+			echo $this->escapeHTML( $_SESSION['module_customrecordnaming_amended'][0] );
+?> already exists in the project.<br>Your record has been created as <b><?php
+			echo $this->escapeHTML( $_SESSION['module_customrecordnaming_amended'][1] );
+?></b>.</p></div>')
+    vDialog.dialog(
+    {
+      autoOpen:true,
+      modal:true,
+      resizable:false,
+      title:'Record name updated',
+      width:420
+    })
+  })
+</script>
+<?php
+
+			unset( $_SESSION['module_customrecordnaming_amended'] );
+		}
 
 	}
 
