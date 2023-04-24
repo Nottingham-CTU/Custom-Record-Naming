@@ -81,7 +81,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( $this->isSurveyPage() && isset( $_GET['dag'] ) )
 		{
 			setcookie( 'custom-record-naming-survey-dag',
-			           $_GET['dag'], time() + 60, '', '', true, true );
+			           array_reduce( [ $_GET['dag'] ], function( $c, $i ) { return $c . $i; }, '' ),
+			           time() + 60, '', '', true, true );
 		}
 
 		$this->canAddRecord = true;
