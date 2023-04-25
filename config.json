@@ -10,6 +10,7 @@
 		}
 	],
 	"permissions": [
+		"redcap_module_system_enable",
 		"redcap_every_page_before_render",
 		"redcap_every_page_top",
 		"redcap_survey_page_top",
@@ -24,21 +25,6 @@
 		]
 	},
 	"project-settings" : [
-		{
-			"key" : "numbering",
-			"name" : "Record numbering",
-			"type" : "radio",
-			"choices" : [
-				{ "value" : "P", "name" : "Project-wide (unique numbers)" },
-				{ "value" : "A", "name" : "Per arm" },
-				{ "value" : "G", "name" : "Per DAG" },
-				{ "value" : "AG", "name" : "Per arm and DAG" },
-				{ "value" : "AG?", "name" : "Per arm (and DAG if used)" },
-				{ "value" : "AF", "name" : "Per arm (and field value if used)" },
-				{ "value" : "AGF", "name" : "Per arm (and DAG/field value if used)" }
-			],
-			"required" : true
-		},
 		{
 			"key" : "dag-format",
 			"name" : "Restrict DAG name format (regular expression)",
@@ -80,6 +66,16 @@
 				{
 					"key" : "scheme-name-suffix",
 					"name" : "Record name suffix",
+					"type" : "text"
+				},
+				{
+					"key" : "scheme-const1",
+					"name" : "Constant value",
+					"type" : "text"
+				},
+				{
+					"key" : "scheme-numbering",
+					"name" : "Record numbering",
 					"type" : "text"
 				},
 				{
@@ -154,6 +150,39 @@
 					"key" : "scheme-field-lookup-filter",
 					"name" : "Filter records by logic",
 					"type" : "textarea"
+				},
+				{
+					"key" : "scheme-check-digit-algorithm",
+					"name" : "Check digit algorithm",
+					"type" : "dropdown",
+					"choices" : [
+						{ "value" : "mod97", "name" : "mod97" }
+					]
+				},
+				{
+					"key" : "scheme-name-trigger",
+					"name" : "Trigger custom naming",
+					"type" : "radio",
+					"choices" : [
+						{ "value" : "", "name" : "On auto numbering (default)" },
+						{ "value" : "R", "name" : "On auto numbering and when naming in REDCap format" },
+						{ "value" : "M", "name" : "On auto numbering and upon prefix/suffix mismatch" }
+					]
+				},
+				{
+					"key" : "scheme-allow-new",
+					"name" : "Allow new records on this arm",
+					"type" : "radio",
+					"choices" : [
+						{ "value" : "", "name" : "Always (default)" },
+						{ "value" : "C", "name" : "Always, enforce complete status on first submission" },
+						{ "value" : "S", "name" : "On surveys only" }
+					]
+				},
+				{
+					"key" : "scheme-instrument",
+					"name" : "Load data entry form",
+					"type" : "text"
 				}
 			]
 		},

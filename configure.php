@@ -1,5 +1,8 @@
 <?php
 
+namespace Nottingham\CustomRecordNaming;
+
+
 if ( ! $module->canConfigure() )
 {
 	exit;
@@ -7,7 +10,28 @@ if ( ! $module->canConfigure() )
 
 $listRecordNameTypes = $module->getListRecordNameTypes();
 
+$listRecordNumberingTypes = [ 'A' => 'Arm' ] +
+                            array_diff_key( $module->getListRecordNameTypes(),
+                                            [ 'R' => true, 'C' => true, '1' => true ] );
+
 $listArms = $module->getArms();
+$listEvents = \REDCap::getEventNames( false, false );
+$listEventsUN = \REDCap::getEventNames( true, false );
+$listInstruments = \REDCap::getInstrumentNames();
+
+$listEventInstruments = [];
+foreach ( $listArms as $armID => $armName )
+{
+	$listArmEventInstruments = [];
+	foreach ( $module->getInstrumentEventMapping( $armID ) as $eventInstrument )
+	{
+		$listArmEventInstruments[ $listEventsUN[ $eventInstrument['event_id'] ] . ':' .
+		                                                    $eventInstrument['instrument'] ] =
+				$listEvents[ $eventInstrument['event_id'] ] . ' : ' .
+				$listInstruments[ $eventInstrument['instrument'] ];
+	}
+	$listEventInstruments[ $armID ] = $listArmEventInstruments;
+}
 
 // Extract the module settings from the config.json file.
 $projectSettingsConfig = $module->getConfig()['project-settings'];
@@ -16,8 +40,7 @@ $listArmSettings = [];
 foreach ( $projectSettingsConfig as $settingConfig )
 {
 	if ( $settingConfig['type'] == 'descriptive' ||
-	     $settingConfig['key'] == 'project-record-counter' ||
-	     $settingConfig['key'] == 'project-last-record' )
+	     $settingConfig['key'] == 'project-record-counter' )
 	{
 		continue;
 	}
@@ -89,7 +112,8 @@ if ( ! empty( $_POST ) )
 	{
 		foreach ( $_POST as $field => $value )
 		{
-			if ( isset( $listProjectSettings[ $field ] ) || isset( $listArmSettings[ $field ] ) )
+			if ( isset( $listProjectSettings[ $field ] ) || isset( $listArmSettings[ $field ] ) ||
+			     $field == 'scheme-settings' )
 			{
 				$module->setProjectSetting( $field, $value );
 			}
@@ -123,6 +147,14 @@ function makeSettingRow( $field, $name, $type, $choices, $value )
 	{
 		$row .= ' data-type="F"';
 	}
+	elseif ( strpos( $field, 'check-digit' ) !== false )
+	{
+		$row .= ' data-type="C"';
+	}
+	elseif ( $field == 'scheme-const1[]' )
+	{
+		$row .= ' data-type="1"';
+	}
 	elseif ( $field == 'scheme-name-separator[]' )
 	{
 		$row .= ' data-separator="1"';
@@ -148,7 +180,7 @@ function makeSettingRow( $field, $name, $type, $choices, $value )
 	elseif ( $type == 'dropdown' || $type == 'radio' )
 	{
 		$row .= '<select name="' . $field . '">';
-		if ( $type == 'dropdown' || $value == '' )
+		if ( $type == 'dropdown' || ( $value == '' && ! array_key_exists( '', $choices ) ) )
 		{
 			$row .= '<option value=""></option>';
 		}
@@ -159,6 +191,17 @@ function makeSettingRow( $field, $name, $type, $choices, $value )
 			        htmlspecialchars( $choiceLabel ) . '</option>';
 		}
 		$row .= '</select>';
+	}
+	elseif ( $type == 'checkboxes' )
+	{
+		$row .= '<span class="checkboxes" data-field="' . $field . '">';
+		foreach ( $choices as $choiceVal => $choiceLabel )
+		{
+			$row .= '<label><input type="checkbox" data-value="' . $choiceVal . '"' .
+			        ( strpos( $value, $choiceVal) === false ? '' : ' checked' ) . '> ' .
+			        htmlspecialchars( $choiceLabel ) . '</label> ';
+		}
+		$row .= '</span><input type="hidden" name="' . $field . '" value="' . $value . '">';
 	}
 	elseif ( $type == 'multiselect' )
 	{
@@ -312,6 +355,12 @@ foreach ( $listArms as $armID => $armName )
 			$fieldType = 'multiselect';
 			$fieldChoices = $listRecordNameTypes;
 		}
+		elseif ( $fieldName == 'scheme-numbering' )
+		{
+			// The scheme numbering is a checkboxes field.
+			$fieldType = 'checkboxes';
+			$fieldChoices = $listRecordNumberingTypes;
+		}
 		elseif ( $fieldName == 'scheme-number-start' || $fieldName == 'scheme-dag-section' )
 		{
 			// Numeric fields have a 'number' type.
@@ -340,8 +389,29 @@ foreach ( $listArms as $armID => $armName )
 			// For the server timestamp option, show the current server timestamp.
 			$fieldChoices['S'] .= ' (' . date('e') . ')';
 		}
+		elseif ( $fieldName == 'scheme-instrument' )
+		{
+			// Provide the events/instruments dropdown for the data entry form to load after naming.
+			$fieldType = 'dropdown';
+			$fieldChoices = $listEventInstruments[ $armID ];
+		}
 		$value = ( $valueIndex === false ? '' : $setting['value'][ $valueIndex ] );
 		echo makeSettingRow( $fieldName.'[]', $setting['name'], $fieldType, $fieldChoices, $value );
+		if ( $fieldName == 'scheme-name-trigger' )
+		{
+			// Add a note after the trigger field.
+			echo '<tr><td></td><td style="font-size:x-small">Note: Triggering custom record naming',
+			     ' when a record is being named in REDCap format should be avoided if the custom ',
+			     'format can match the REDCap format (one number or two numbers separated by a ',
+			     'dash) as desired record names could be blocked.</td></tr>';
+		}
+		elseif ( strpos( $fieldName, 'scheme-const' ) === 0 )
+		{
+			// Add a note after the constant field.
+			echo '<tr data-type="', substr( $fieldName, 12 ), '"><td></td><td style="',
+			     'font-size:x-small">Note: A separator will not be included around a constant ',
+			     'value.</td></tr>';
+		}
 	}
 	if ( $firstArm )
 	{
@@ -407,6 +477,10 @@ $(function()
     {
       vBranchedFields.find('.choose-dag-format').change()
     }
+    if ( ! vValue.includes( 'C' ) )
+    {
+      $(vList).closest('table').find('select[name="scheme-check-digit-algorithm[]"]').val('')
+    }
     $(vList).closest('table').find('[data-separator]').each( function()
     {
       if ( vValue.length > 1 )
@@ -418,15 +492,40 @@ $(function()
         $(this).css('display','none')
       }
     })
+    var vNumberingCheckboxSet =
+        $(vList).closest('table').find('span[data-field="scheme-numbering[]"]')
+    var vNumberingCheckboxes = vNumberingCheckboxSet.find('input[data-value]')
+    vNumberingCheckboxes.each( function()
+    {
+      var vChkbx = $(this)
+      if ( vChkbx.attr('data-value') == 'A' || vValue.includes( vChkbx.attr('data-value') ) )
+      {
+        vChkbx.parent().css('display','')
+      }
+      else
+      {
+        vChkbx.prop('checked',false)
+        vChkbx.parent().css('display','none')
+      }
+    })
+    vFuncUpdateCheckboxes( vNumberingCheckboxSet )
+  }
+  var vFuncUpdateCheckboxes = function ( vCheckboxSet )
+  {
+    var vValue = $.map($(vCheckboxSet).find('input:checked'),
+                       function(v){return $(v).attr('data-value')}).join('')
+    vCheckboxSet.siblings('input').val(vValue)
   }
   $('head').append('<style type="text/css">.multiselect{margin-bottom:3px;padding:0px}' +
                    '.multiselect li{display:inline-block;cursor:grab;border:solid 1px #000;' +
-                   'background:#eee;margin-right:5px;padding:4px;font-size:small}' +
+                   'background:#eee;margin:0px 5px 7px 0px;padding:4px;font-size:small}' +
                    '.ui-tabs .ui-tabs-nav li.ui-tabs-active .ui-tabs-anchor' +
-                   '{cursor:default;font-weight:bold;color:#000}</style>')
+                   '{cursor:default;font-weight:bold;color:#000}' +
+                   '.checkboxes label{margin-right:10px}</style>')
   $('#modsettings').tabs()
   $('.multiselect').sortable({"update":function(){ vFuncUpdateNameType($(this)) }})
   $('.multiselect :checkbox').click(function(){ vFuncUpdateNameType($(this).closest('ul')) })
+  $('.checkboxes :checkbox').click(function(){ vFuncUpdateCheckboxes($(this).closest('span')) })
   $('.choose-dag-format').each(function()
   {
     var vSelect = $(this)

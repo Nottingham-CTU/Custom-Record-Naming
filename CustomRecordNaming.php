@@ -7,6 +7,49 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 {
 
 
+	// Upgrade settings from older module version if required.
+
+	function redcap_module_system_enable()
+	{
+		$moduleDirPrefix = preg_replace( '/_v[^_]*$/', '', $this->getModuleDirectoryName() );
+		// Convert pre v1.4.0 numbering setting to new per-arm format.
+		$queryProjects = $this->query( 'SELECT project_id FROM redcap_external_module_settings ' .
+		                               'WHERE external_module_id = (SELECT external_module_id ' .
+		                               'FROM redcap_external_modules WHERE directory_prefix = ?) ' .
+		                               'AND `key` = ?', [ $moduleDirPrefix, 'numbering' ] );
+		$listProjects = [];
+		while ( $infoProject = $queryProjects->fetch_assoc() )
+		{
+			$listProjects[] = $infoProject['project_id'];
+		}
+		foreach ( $listProjects as $projectID )
+		{
+			$numbering = $this->getProjectSetting( 'numbering', $projectID );
+			$schemeNameTypes = $this->getProjectSetting( 'scheme-name-type', $projectID );
+			$schemeNumbering = $this->getProjectSetting( 'scheme-arm', $projectID );
+			$schemeSettings = [];
+			for ( $i = 0; $i < count( $schemeNumbering ); $i++ )
+			{
+				$schemeRemove = ['P','?'];
+				if ( strpos( $schemeNameTypes[$i], 'G' ) === false )
+				{
+					$schemeRemove[] = 'G';
+				}
+				if ( strpos( $schemeNameTypes[$i], 'F' ) === false )
+				{
+					$schemeRemove[] = 'F';
+				}
+				$schemeNumbering[$i] = str_replace( $schemeRemove, '', $numbering );
+				$schemeSettings[] = 'true';
+			}
+			$this->setProjectSetting( 'scheme-numbering', $schemeNumbering, $projectID );
+			$this->setProjectSetting( 'scheme-settings', $schemeSettings, $projectID );
+			$this->removeProjectSetting( 'numbering', $projectID );
+			$this->removeProjectSetting( 'project-last-record', $projectID );
+		}
+	}
+
+
 	// Determine whether link to module configuration is shown.
 	function redcap_module_link_check_display( $project_id, $link )
 	{
@@ -33,14 +76,25 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			return;
 		}
 
+		// For survey pages, check if a 'dag' query string parameter is specified and if so set a
+		// cookie to match (in case the parameter is dropped during the submission process).
+		if ( $this->isSurveyPage() && isset( $_GET['dag'] ) )
+		{
+			setcookie( 'custom-record-naming-survey-dag',
+			           array_reduce( [ $_GET['dag'] ], function( $c, $i ) { return $c . $i; }, '' ),
+			           time() + 60, '', '', true, true );
+		}
+
 		$this->canAddRecord = true;
 		$this->hasSettingsForArm = true;
+		$this->blockedBySettings = false;
 		$this->userSuppliedComponentPrompt = null;
 		$this->userSuppliedComponentRegex = null;
 		$this->fieldLookupPrompt = null;
 		$this->fieldLookupList = null;
 		$this->userGroup = null;
 		$this->groupCode = null;
+		$this->allowNew = '';
 
 		// Perform a redirect when a new record is created to use the appropriate participant ID.
 		if ( defined( 'PROJECT_ID' ) && defined( 'USERID' ) &&
@@ -52,6 +106,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$this->userGroup = $userGroup;
 
 			$armNum = 1;
+			$armID = null;
 			if ( isset( $_GET['arm'] ) && is_numeric( $_GET['arm'] ) )
 			{
 				$armNum = $_GET['arm'];
@@ -66,13 +121,24 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 					$armNum = $savedArmNum;
 				}
 			}
+			elseif ( isset( $_GET['event_id'] ) && is_numeric( $_GET['event_id'] ) )
+			{
+				$this->getArmIdFromNum( null );
+				$armID = $this->getArmIdFromEventId( $_GET['event_id'] );
+			}
 
-			$armID = $this->getArmIdFromNum( $armNum ); // arm ID or NULL
+			if ( $armID === null )
+			{
+				$armID = $this->getArmIdFromNum( $armNum ); // arm ID or NULL
+			}
 			if ( isset( $GLOBALS['multiple_arms'] ) && ! $GLOBALS['multiple_arms'] &&
 			     count( $this->listArmIdNum ) == 1 )
 			{
 				$armID = array_values( $this->listArmIdNum )[0];
 			}
+			$armSettingID = null;
+			$schemePrefix = '';
+			$schemeSuffix = '';
 
 			// If the arm ID cannot be determined, a record cannot be created.
 			if ( $armID === null )
@@ -108,6 +174,25 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 								$this->getProjectSetting( 'scheme-field-lookup-desc' )[ $armSettingID ],
 								$this->getProjectSetting( 'scheme-field-lookup-filter' )[ $armSettingID ] );
 					}
+					$schemePrefix = $this->getProjectSetting( 'scheme-name-prefix' )[ $armSettingID ];
+					$schemeSuffix = $this->getProjectSetting( 'scheme-name-suffix' )[ $armSettingID ];
+					$schemeTriggerOn = $this->getProjectSetting( 'scheme-name-trigger' );
+					$triggerOnRCName = ( is_array( $schemeTriggerOn ) &&
+					                     isset( $schemeTriggerOn[ $armSettingID ] ) )
+					                   ? ( $schemeTriggerOn[ $armSettingID ] == 'R' ) : false;
+					$triggerOnMismatch = ( is_array( $schemeTriggerOn ) &&
+					                       isset( $schemeTriggerOn[ $armSettingID ] ) )
+					                     ? ( $schemeTriggerOn[ $armSettingID ] == 'M' ) : false;
+					$this->allowNew = $this->getProjectSetting( 'scheme-allow-new' );
+					$this->allowNew = ( is_array( $this->allowNew ) &&
+					                    isset( $this->allowNew[ $armSettingID ] ) )
+					                  ? $this->allowNew[ $armSettingID ] : '';
+					$schemeAllowNew = ( $this->allowNew != 'S' );
+					if ( ! $schemeAllowNew )
+					{
+						$this->canAddRecord = false;
+						$this->blockedBySettings = true;
+					}
 				}
 				else
 				{
@@ -121,7 +206,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 				// Get the numbering type, and check the chosen arm to see if DAG based numbering
 				// is in use or the naming scheme for the arm contains the DAG.
-				$numberingType = $this->getProjectSetting( 'numbering' );
+				$numberingType = $this->getProjectSetting( 'scheme-numbering' )[ $armSettingID ];
 				$armNeedsDAG = false;
 				if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
 				             'G' ) !== false )
@@ -132,7 +217,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				// If record numbering is based on Data Access Groups (DAGs) or the naming scheme
 				// contains the DAG, then the user must be in a DAG in order to create a record.
 				// Get the scheme DAG format and check the current DAG matches.
-				if ( $numberingType == 'G' || $numberingType == 'AG' || $armNeedsDAG )
+				if ( strpos( $numberingType, 'G' ) !== false || $armNeedsDAG )
 				{
 					if ( $userGroup === null )
 					{
@@ -151,6 +236,26 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				}
 			}
 
+			// If a new record is being submitted, check that the record name is still unused. If
+			// it is not, then generate a new one.
+			if ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 19 ) == 'DataEntry/index.php' &&
+				 isset( $_POST[ 'module-custom-record-naming-new-record' ] ) )
+			{
+				unset( $_POST[ 'module-custom-record-naming-new-record' ] );
+				$submittedRecordName = $_POST[ \REDCap::getRecordIdField() ];
+				$newRecordName =
+						$this->generateRecordName( $armID, $armSettingID, $groupCode, null, true );
+				if ( $this->countRecords( $submittedRecordName ) > 0 &&
+				     $submittedRecordName != $newRecordName )
+				{
+					$_SESSION['module_customrecordnaming_amended'] =
+									[ $submittedRecordName, $newRecordName ];
+					$_POST[ \REDCap::getRecordIdField() ] = $newRecordName;
+				}
+				setcookie( 'redcap_custom_record_name', '', 1, '', '', true );
+				setcookie( 'redcap_custom_record_name_fieldval', '', 1, '', '', true );
+			}
+
 			// When an ID is assigned to the record (whether by this module or REDCap), tell REDCap
 			// that auto incrementing record IDs are not being used. This ensures that the 'auto'
 			// query string parameter is not re-inserted during a redirect.
@@ -161,7 +266,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 			// The presence of the 'auto' query string parameter indicates that the REDCap assigned
 			// record ID is in use. This will need to be replaced by the module generated record ID.
-			if ( isset( $_GET[ 'auto' ] ) )
+			if ( isset( $_GET[ 'auto' ] ) ||
+			     ( $armSettingID !== null && $triggerOnRCName && isset( $_GET[ 'id' ] ) &&
+			       preg_match( '/^([1-9][0-9]*-)?[1-9][0-9]*$/', $_GET[ 'id' ] ) ) ||
+			     ( $armSettingID !== null && $triggerOnMismatch && isset( $_GET[ 'id' ] ) &&
+			       ( strpos( $_GET[ 'id' ], $schemePrefix ) !== 0 ||
+			         strpos( strrev( $_GET[ 'id' ] ), strrev( $schemeSuffix ) ) !== 0 ) ) )
 			{
 				// If the record cannot be created, redirect back to the add/edit records page.
 				// This shouldn't usually be invoked, as the add new record button will be replaced
@@ -184,19 +294,36 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				{
 					// Clear the record counter.
 					$this->setProjectSetting( 'project-record-counter', '{}' );
-					// Clear the last created record.
-					$this->setProjectSetting( 'project-last-record', '{}' );
 				}
 
 				// Generate the new record name.
 				$recordName = $this->generateRecordName( $armID, $armSettingID, $groupCode );
+
+				// Get the data entry form to load, if applicable.
+				$loadInstrument = $this->getProjectSetting( 'scheme-instrument' );
+				$loadInstrument = ( is_array( $loadInstrument ) &&
+				                     isset( $loadInstrument[ $armSettingID ] ) )
+				                   ? $loadInstrument[ $armSettingID ] : '';
+				$loadInstrument = explode( ':', $loadInstrument );
+				if ( count( $loadInstrument ) == 2 )
+				{
+					$loadInstrument[0] =
+						array_search( $loadInstrument[0], \REDCap::getEventNames( true, false ) );
+					$loadInstrument =
+						'&event_id=' . $loadInstrument[0] . '&page=' . $loadInstrument[1];
+				}
+				else
+				{
+					$loadInstrument = '';
+				}
 
 				// Regenerate the URL query string using the new record name and removing the 'auto'
 				// parameter, and perform a redirect to the new URL.
 				$queryString = '';
 				foreach ( $_GET as $name => $val )
 				{
-					if ( $name == 'auto' )
+					if ( $name == 'auto' ||
+					     ( $loadInstrument != '' && in_array( $name, [ 'arm', 'pnid' ] ) ) )
 					{
 						continue;
 					}
@@ -211,7 +338,15 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 						$queryString .= rawurlencode( $val );
 					}
 				}
-				$this->redirect( PAGE_FULL . $queryString );
+				if ( $loadInstrument == '' )
+				{
+					$this->redirect( PAGE_FULL . $queryString );
+				}
+				else
+				{
+					$this->redirect( str_replace( 'record_home.php', 'index.php', PAGE_FULL ) .
+					                 $queryString . $loadInstrument );
+				}
 			}
 		}
 
@@ -355,6 +490,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$addText1 = $GLOBALS['lang']['data_entry_46'];
 			$addText2 = $GLOBALS['lang']['data_entry_46'] . ' ' . $GLOBALS['lang']['data_entry_442'];
 			$addText3 = $GLOBALS['lang']['data_entry_46'] . $GLOBALS['lang']['data_entry_99'];
+			$addText4 = $GLOBALS['lang']['data_entry_533'];
 
 			// If a new record cannot be added (either because the user is not currently in a valid
 			// DAG, or because the selected arm does not have a naming scheme), then remove the
@@ -369,21 +505,29 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
     {
       if ( vListButton[ i ].innerText.trim() == '<?php echo $addText1; ?>' ||
            vListButton[ i ].innerText.trim() == '<?php echo $addText2; ?>' ||
-           vListButton[ i ].innerText.trim() == '<?php echo $addText3; ?>' )
+           vListButton[ i ].innerText.trim() == '<?php echo $addText3; ?>' ||
+           vListButton[ i ].innerText.trim() == '<?php echo $addText4; ?>' )
       {
         vListButton[ i ].style.display = 'none'
 <?php
-				if ( $this->hasSettingsForArm )
+				if ( ! $this->hasSettingsForArm )
 				{
 ?>
-        $( '<i>(You must be in a valid Data Access Group to add records)</i>'
+        $( '<i>(Record numbering has not been set up for the current arm)</i>'
+               ).insertBefore( vListButton[ i ] )
+<?php
+				}
+				else if ( $this->blockedBySettings )
+				{
+?>
+        $( '<i>(New records cannot be added for this arm)</i>'
                ).insertBefore( vListButton[ i ] )
 <?php
 				}
 				else
 				{
 ?>
-        $( '<i>(Record numbering has not been set up for the current arm)</i>'
+        $( '<i>(You must be in a valid Data Access Group to add records)</i>'
                ).insertBefore( vListButton[ i ] )
 <?php
 				}
@@ -408,7 +552,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
     {
       if ( vListButton[ i ].innerText.trim() == '<?php echo $addText1; ?>' ||
            vListButton[ i ].innerText.trim() == '<?php echo $addText2; ?>' ||
-           vListButton[ i ].innerText.trim() == '<?php echo $addText3; ?>' )
+           vListButton[ i ].innerText.trim() == '<?php echo $addText3; ?>' ||
+           vListButton[ i ].innerText.trim() == '<?php echo $addText4; ?>' )
       {
         var vOldOnclick = vListButton[ i ].onclick
         vListButton[ i ].onclick = <?php
@@ -433,10 +578,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		// On the data entry form, if the record is new (no data saved yet), if the user is in a
 		// DAG and the 'assign record to DAG' drop down is present (this likely only applies to
 		// administrators) then ensure the drop down is set to the user's DAG.
-		// Send an ajax request to the ajax_keepalive.php file every 30 seconds, so that the
-		// record ID is reserved while the form is being completed. If the user navigates away from
-		// the form without saving, the record ID can be reused after 90 seconds (unless the next
-		// record ID has already been used or reserved).
+		// Denote the record as new so the module can check the record name is still unused upon
+		// submission.
 		if ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 19 ) == 'DataEntry/index.php' &&
 			 isset( $_GET[ 'id' ] ) && $this->countRecords( $_GET[ 'id' ] ) == 0 )
 		{
@@ -460,19 +603,21 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 
 ?>
-    var vFuncKeepAlive = function ()
-    {
-      $.ajax( { url : '<?php echo $this->getUrl( 'ajax_keepalive.php' ); ?>',
-                method : 'POST',
-                data : { record : '<?php $this->echoText( addslashes( $_GET['id'] ) ); ?>',
-                         arm : '<?php echo $this->getArmIdFromNum( $_GET['arm'] ?? 1 ); ?>',
-                         dag : '<?php echo $this->groupCode ?? ''; ?>' },
-                headers : { 'X-RC-CRN-Req' : '1' },
-                dataType : 'json'
-              } )
-    }
-    vFuncKeepAlive()
-    setInterval( vFuncKeepAlive, 30000 )
+    $('input[name="<?php echo \REDCap::getRecordIdField(); ?>"]').after(
+                    '<input type="hidden" name="module-custom-record-naming-new-record" value="1">')
+<?php
+
+			if ( $this->allowNew == 'C' )
+			{
+
+?>
+    $('select[name="<?php echo $this->escapeHTML( $_GET['page'] );
+?>_complete"] option:not([value="2"])').remove()
+<?php
+
+			}
+
+?>
   })
 </script>
 <?php
@@ -575,6 +720,37 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 		} // End public survey links content.
 
+
+
+		// If the module had to amend a record name because the name already exists, notify the
+		// user of the updated record name.
+		if ( isset( $_SESSION['module_customrecordnaming_amended'] ) )
+		{
+
+?>
+<script type="text/javascript">
+  $(function()
+  {
+    var vDialog = $('<div><p>The record <?php
+			echo $this->escapeHTML( $_SESSION['module_customrecordnaming_amended'][0] );
+?> already exists in the project.<br>Your record has been created as <b><?php
+			echo $this->escapeHTML( $_SESSION['module_customrecordnaming_amended'][1] );
+?></b>.</p></div>')
+    vDialog.dialog(
+    {
+      autoOpen:true,
+      modal:true,
+      resizable:false,
+      title:'Record name updated',
+      width:420
+    })
+  })
+</script>
+<?php
+
+			unset( $_SESSION['module_customrecordnaming_amended'] );
+		}
+
 	}
 
 
@@ -592,6 +768,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 		// Perform the record rename and DAG assignment.
 		$newRecordID = $this->performSurveyRename( $record, $event_id );
+		setcookie( 'redcap_custom_record_name', '', 1, '', '', true );
+		setcookie( 'redcap_custom_record_name_fieldval', '', 1, '', '', true );
 		// Remove the survey record's first submit timestamp, so that the user is able to load the
 		// survey again after rename in order to complete it.
 		$this->query( 'UPDATE redcap_surveys_response SET first_submit_time = NULL ' .
@@ -619,6 +797,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 		// Perform the record rename and DAG assignment.
 		$this->performSurveyRename( $record, $event_id );
+		setcookie( 'redcap_custom_record_name', '', 1, '', '', true );
+		setcookie( 'redcap_custom_record_name_fieldval', '', 1, '', '', true );
 		$_SESSION['module_customrecordnaming_resubmit'] = time();
 	}
 
@@ -657,7 +837,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		// Identify the set of settings for the arm.
 		$armID = $this->getArmIdFromEventId( $event_id );
 		$listSettingArmIDs = $this->getProjectSetting( 'scheme-arm' );
-		if ( in_array( $armID, $listSettingArmIDs ) )
+		if ( is_array( $listSettingArmIDs ) && in_array( $armID, $listSettingArmIDs ) )
 		{
 			$armSettingID = array_search( $armID, $listSettingArmIDs );
 		}
@@ -816,7 +996,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
                  'G' => 'DAG',
                  'U' => 'User supplied',
                  'T' => 'Timestamp',
-                 'F' => 'Field value lookup' ];
+                 'F' => 'Field value lookup',
+                 'C' => 'Check digits',
+                 'Z' => 'Username',
+                 '1' => 'Constant value' ];
 	}
 
 
@@ -830,7 +1013,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 
 		$errMsg = '';
-		$clearCounters = false;
 		$listFieldNames = \REDCap::getFieldNames();
 
 		// If the DAG name restriction is specified, check it is a valid regular expression.
@@ -838,29 +1020,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		     preg_match( $this->makePcreString( $settings['dag-format'] ), '' ) === false )
 		{
 			$errMsg .= "\n- Invalid regular expression for restrict DAG name format";
-		}
-
-		// Ensure that a setting is present for record numbering. This setting cannot be changed
-		// once records exist (in production), as the record counter(s) would then be invalid.
-		// While the project is in development status, the record numbering can always be changed
-		// for convenience, even though this could cause issues. In this case, the record counters
-		// will be reset to mitigate these issues.
-		if ( ! isset( $settings['numbering'] ) || $settings['numbering'] == '' )
-		{
-			$errMsg .= "\n- Value required for record numbering";
-		}
-		elseif ( $settings['numbering'] != $this->getProjectSetting( 'numbering' ) &&
-		         $this->countRecords() > 0 )
-		{
-			if ( method_exists( $this->framework, 'getProjectStatus' ) &&
-			     $this->framework->getProjectStatus() == 'DEV' )
-			{
-				$clearCounters = true;
-			}
-			else
-			{
-				$errMsg .= "\n- Record numbering cannot be changed once records exist";
-			}
 		}
 
 		// Validate the settings for each custom naming scheme.
@@ -879,19 +1038,28 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 			$definedArms[] = $settings['scheme-arm'][$i];
 
-			// Ensure that the record name type has been set, and that it includes the DAG if per
-			// DAG numbering is being used.
+			// Ensure that the record name type has been set, and that the numbering does not
+			// include components not used in the name.
 			if ( ! isset( $settings['scheme-name-type'][$i] ) ||
 			     $settings['scheme-name-type'][$i] == '' )
 			{
 				$errMsg .= "\n- Naming scheme " . ($i + 1) .
 				           ": Value required for record name type";
 			}
-			elseif ( in_array( $settings['numbering'], [ 'G', 'AG' ] ) &&
-			         strpos( $settings['scheme-name-type'][$i], 'G' ) === false )
+			elseif ( ! empty( array_diff( str_split( $settings['scheme-numbering'][$i], 1 ),
+			                              array_merge( ['','A'],
+			                               str_split( $settings['scheme-name-type'][$i], 1 ) ) ) ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) . ": Record name type" .
-				           " must include DAG if per DAG numbering used";
+				$errMsg .= "\n- Naming scheme " . ($i + 1) . ": Record numbering can only use" .
+				           " the selected record name types";
+			}
+
+			// Ensure that the constant value has been set if selected.
+			if ( strpos( $settings['scheme-name-type'][$i], '1' ) !== false &&
+			     $settings['scheme-const1'][$i] == '' )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": Constant value cannot be blank if constant value used";
 			}
 
 			// Ensure that the starting number, if set, is a positive integer.
@@ -1025,19 +1193,20 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				           ": The specified lookup description field does not exist";
 			}
 
+			// Ensure that the check digit algorithm is provided if the record name type includes
+			// check digits.
+			if ( strpos( $settings['scheme-name-type'][$i], 'C' ) !== false &&
+			     $settings['scheme-check-digit-algorithm'][$i] == '' )
+			{
+				$errMsg .= "\n- Naming scheme " . ($i + 1) .
+				           ": Check digit algorithm cannot be blank if check digits used";
+			}
+
 		}
 
 		if ( $errMsg != '' )
 		{
 			return "Your record naming configuration contains errors:$errMsg";
-		}
-
-		if ( $clearCounters )
-		{
-			// Clear the record counter.
-			$this->setProjectSetting( 'project-record-counter', '{}' );
-			// Clear the last created record.
-			$this->setProjectSetting( 'project-last-record', '{}' );
 		}
 
 		return null;
@@ -1072,6 +1241,27 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 		}
 		return null;
+	}
+
+
+
+	public function getInstrumentEventMapping( $armID )
+	{
+		$projectID = $this->getProjectId();
+		$result = [];
+		if ( $projectID != null )
+		{
+			$res = $this->query( 'SELECT ef.event_id, ef.form_name FROM redcap_events_forms ef ' .
+			                     'JOIN redcap_events_metadata em ON ef.event_id = em.event_id ' .
+			                     'WHERE em.arm_id = ? ORDER BY em.day_offset, ( SELECT ' .
+			                     'min(field_order) FROM redcap_metadata WHERE form_name = ' .
+			                     'ef.form_name AND project_id = ? );', [ $armID, PROJECT_ID ] );
+			while ( $row = $res->fetch_row() )
+			{
+				$result[] = [ 'event_id' => $row[0], 'instrument' => $row[1] ];
+			}
+		}
+		return $result;
 	}
 
 
@@ -1150,25 +1340,35 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 	// Generate a new record name.
-	protected function generateRecordName( $armID, $armSettingID, $groupCode, $oldName = null )
+	protected function generateRecordName( $armID, $armSettingID, $groupCode,
+	                                       $oldName = null, $incrementCounter = false )
 	{
 		// Get the scheme settings for the arm.
-		$numbering = $this->getProjectSetting( 'numbering' );
+		$numbering = $this->getProjectSetting( 'scheme-numbering' )[ $armSettingID ];
 		$nameType = $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ];
 		$namePrefix = $this->getProjectSetting( 'scheme-name-prefix' )[ $armSettingID ];
 		$nameSeparator = $this->getProjectSetting( 'scheme-name-separator' )[ $armSettingID ];
 		$nameSuffix = $this->getProjectSetting( 'scheme-name-suffix' )[ $armSettingID ];
+		$const1 = $this->getProjectSetting( 'scheme-const1' )[ $armSettingID ];
 		$startNum = $this->getProjectSetting( 'scheme-number-start' )[ $armSettingID ];
 		$zeroPad = $this->getProjectSetting( 'scheme-number-pad' )[ $armSettingID ];
 		$timestampFormat = $this->getProjectSetting( 'scheme-timestamp-format' )[ $armSettingID ];
 		$timestampTZ = $this->getProjectSetting( 'scheme-timestamp-tz' )[ $armSettingID ];
+		$chkDigitAlg = $this->getProjectSetting( 'scheme-check-digit-algorithm' )[ $armSettingID ];
 
 		// Get the user supplied component if it has been entered.
 		$suppliedComponent = '';
 		if ( isset( $_COOKIE[ 'redcap_custom_record_name' ] ) )
 		{
 			$suppliedComponent = $_COOKIE[ 'redcap_custom_record_name' ];
-			setcookie( 'redcap_custom_record_name', '', 1, '', '', true );
+		}
+
+		// Get the timestamp (UTC or server timezone) if required.
+		$timestamp = '';
+		if ( strpos( $nameType, 'T' ) !== false )
+		{
+			$timestamp = ( $timestampTZ == 'U' ) ? gmdate( $timestampFormat ) // UTC
+			                                     : date( $timestampFormat );  // server
 		}
 
 		// Get the field value from the lookup if it has been entered.
@@ -1176,43 +1376,27 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( isset( $_COOKIE[ 'redcap_custom_record_name_fieldval' ] ) )
 		{
 			$suppliedFieldValue = $_COOKIE[ 'redcap_custom_record_name_fieldval' ];
-			setcookie( 'redcap_custom_record_name_fieldval', '', 1, '', '', true );
 		}
+
+		// Get the user's username.
+		$currentUser = ( USERID == '[survey respondent]' ? '' : USERID );
 
 		// Determine the record number using the record counter.
 		$counterID = 'project';
-		if ( $numbering == 'A' ||
-		     ( $numbering == 'AG?' && strpos( $nameType, 'G' ) === false ) ||
-		     ( $numbering == 'AF' && strpos( $nameType, 'F' ) === false ) ||
-		     ( $numbering == 'AGF' &&
-		       strpos( $nameType, 'G' ) === false && strpos( $nameType, 'F' ) === false ) )
+		if ( strpos( $numbering, 'A' ) !== false )
 		{
 			$counterID = "$armID";
 		}
-		elseif ( $numbering == 'G' )
+		foreach ( [ 'G' => "$groupCode", 'U' => $suppliedComponent, 'T' => $timestamp,
+		            'F' => $suppliedFieldValue, 'Z' => $currentUser ]
+		          as $numberingCode => $counterComponent )
 		{
-			$counterID = "$groupCode";
-		}
-		elseif ( $numbering == 'AG' ||
-		         ( $numbering == 'AG?' && strpos( $nameType, 'G' ) !== false ) ||
-		         ( $numbering == 'AGF' &&
-		           strpos( $nameType, 'G' ) !== false && strpos( $nameType, 'F' ) === false ) )
-		{
-			$counterID = "$armID/$groupCode";
-		}
-		elseif ( ( $numbering == 'AF' && strpos( $nameType, 'F' ) !== false ) ||
-		         ( $numbering == 'AGF' &&
-		           strpos( $nameType, 'G' ) === false && strpos( $nameType, 'F' ) !== false ) )
-		{
-			$counterID = "$armID/$suppliedFieldValue";
-		}
-		elseif ( $numbering == 'AGF' &&
-		         strpos( $nameType, 'G' ) !== false && strpos( $nameType, 'F' ) !== false )
-		{
-			$counterID = "$armID/$groupCode/$suppliedFieldValue";
+			if ( strpos( $numbering, $numberingCode ) !== false )
+			{
+				$counterID .= '/' . str_replace( ['\\','/'], ['\\\\','\\'], $counterComponent );
+			}
 		}
 		$recordCounter = json_decode( $this->getProjectSetting( 'project-record-counter' ), true );
-		$lastRecord = json_decode( $this->getProjectSetting( 'project-last-record' ), true );
 
 		// If the record counter has not been started yet, set to the starting number.
 		if ( ! isset( $recordCounter[ $counterID ] ) )
@@ -1225,23 +1409,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 				$recordCounter[ $counterID ] = intval( $startNum );
 			}
-			$lastRecord[ $counterID ] = [ 'name' => '', 'timestamp' => 0, 'user' => '' ];
 			$this->setProjectSetting( 'project-record-counter', json_encode( $recordCounter ) );
-			$this->setProjectSetting( 'project-last-record', json_encode( $lastRecord ) );
-		}
-
-		// Check if the last record was successfully created, and increment the record counter if
-		// so. Treat the last record as created if the timestamp value is within the last 90
-		// seconds. This ensures that if 2 users add records at roughly the same time, that
-		// different record names will be assigned. A 'keepalive' script will update the timestamp
-		// while data for the named record is being entered until the record has been saved.
-		$currentUser = ( USERID == '[survey respondent]' ? '' : USERID );
-		if ( $lastRecord[ $counterID ][ 'timestamp' ] > 0 &&
-		     ( ( $lastRecord[ $counterID ][ 'timestamp' ] > time() - 90 &&
-		         ( $currentUser == '' || $currentUser != $lastRecord[ $counterID ][ 'user' ] ) ) ||
-		       $this->countRecords( $lastRecord[ $counterID ][ 'name' ] ) > 0 ) )
-		{
-			$recordCounter[ $counterID ]++;
 		}
 
 		// Create the record name.
@@ -1257,44 +1425,104 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 				$recordNumber = str_pad( $recordNumber, $zeroPad, '0', STR_PAD_LEFT );
 			}
-			// If (part of) the DAG name is to be included, prepend or append it to the
-			// record number along with the separator.
-			for ( $i = 0; $i < strlen( $nameType ); $i++ )
+			// Determine whether check digits are to be used and the number of runs required to
+			// generate the record name.
+			$checkDigits = '';
+			$hasCheckDigits = ( strpos( $nameType, 'C' ) !== false );
+			if ( $hasCheckDigits )
 			{
-				if ( $i > 0 )
+				if ( $chkDigitAlg == 'mod97' )
 				{
-					$recordName .= $nameSeparator;
-				}
-				if ( substr( $nameType, $i, 1 ) == 'G' ) // DAG
-				{
-					$recordName .= $groupCode;
-				}
-				elseif ( substr( $nameType, $i, 1 ) == 'R' ) // record number
-				{
-					$recordName .= $recordNumber;
-				}
-				elseif ( substr( $nameType, $i, 1 ) == 'U' ) // user supplied
-				{
-					$recordName .= $suppliedComponent;
-				}
-				elseif ( substr( $nameType, $i, 1 ) == 'T' ) // timestamp
-				{
-					if ( $timestampTZ == 'U' ) // UTC
-					{
-						$recordName .= gmdate( $timestampFormat );
-					}
-					else // server timezone
-					{
-						$recordName .= date( $timestampFormat );
-					}
-				}
-				elseif ( substr( $nameType, $i, 1 ) == 'F' ) // field value lookup
-				{
-					$recordName .= $suppliedFieldValue;
+					$namingRuns = [1,2];
 				}
 			}
-			// Prepend the prefix and append the suffix to the record name.
-			$recordName = $namePrefix . $recordName . $nameSuffix;
+			else
+			{
+				$namingRuns = [1];
+			}
+			foreach ( $namingRuns as $namingRun )
+			{
+				// Do any check digit handling required.
+				if ( $hasCheckDigits )
+				{
+					if ( $namingRun == 2 && $chkDigitAlg == 'mod97' )
+					{
+						// Convert record name to uppercase/numbers only.
+						$recordName = preg_replace( '/[^A-Z0-9]/', '', strtoupper($recordName) );
+						// Convert letters to numbers (A=10,B=11,C=12...).
+						$recordName = implode( '', array_map( function($v)
+						                                      {
+						                                          if(ord($v)>64)
+						                                          {
+						                                              return strval(ord($v)-55);
+						                                          }
+						                                          return $v;
+						                                      },
+						                                      str_split( $recordName, 1 ) ) );
+						// Append check digit placeholder.
+						$recordName .= '00';
+						// Calculate mod-97 of converted record name and subtract from 98.
+						while ( strlen( $recordName ) > 2 )
+						{
+							$recordName =
+								substr( '0' . ( intval( substr( $recordName, 0, 9 ) ) % 97 ), -2 ) .
+								substr( $recordName, 9 );
+						}
+						$checkDigits = substr( '0' . ( 98 - intval( $recordName ) ), -2 );
+						// Reset record name to blank.
+						$recordName = '';
+					}
+				}
+				// Build the record name from the components selected, separated by the separator
+				// value (if not constant value).
+				$prevConst = false;
+				for ( $i = 0; $i < strlen( $nameType ); $i++ )
+				{
+					$thisConst = preg_match( '[1-9]', substr( $nameType, $i, 1 ) );
+					if ( $i > 0 && !$thisConst && ! $prevConst )
+					{
+						$recordName .= $nameSeparator;
+					}
+					if ( substr( $nameType, $i, 1 ) == 'G' ) // DAG
+					{
+						$recordName .= $groupCode;
+					}
+					elseif ( substr( $nameType, $i, 1 ) == 'R' ) // record number
+					{
+						$recordName .= $recordNumber;
+					}
+					elseif ( substr( $nameType, $i, 1 ) == 'U' ) // user supplied
+					{
+						$recordName .= $suppliedComponent;
+					}
+					elseif ( substr( $nameType, $i, 1 ) == 'T' ) // timestamp
+					{
+						$recordName .= $timestamp;
+					}
+					elseif ( substr( $nameType, $i, 1 ) == 'F' ) // field value lookup
+					{
+						$recordName .= $suppliedFieldValue;
+					}
+					elseif ( substr( $nameType, $i, 1 ) == 'C' ) // check digits
+					{
+						if ( $namingRun == 2 && $chkDigitAlg == 'mod97' )
+						{
+							$recordName .= $checkDigits;
+						}
+					}
+					elseif ( substr( $nameType, $i, 1 ) == 'Z' ) // username
+					{
+						$recordName .= $currentUser;
+					}
+					elseif ( substr( $nameType, $i, 1 ) == '1' ) // constant value
+					{
+						$recordName .= $const1;
+					}
+					$prevConst = $thisConst;
+				}
+				// Prepend the prefix and append the suffix to the record name.
+				$recordName = $namePrefix . $recordName . $nameSuffix;
+			}
 
 			// Check whether recordName already exists. If it does, and the record number is used
 			// in the record name, increment the record number and try again. Exit the loop if the
@@ -1312,10 +1540,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 
 		// Set the new record counter and last record values.
-		$lastRecord[ $counterID ] = [ 'name' => $recordName, 'timestamp' => time(),
-		                              'user' => $currentUser ];
+		if ( $incrementCounter )
+		{
+			$recordCounter[ $counterID ]++;
+		}
 		$this->setProjectSetting( 'project-record-counter', json_encode( $recordCounter ) );
-		$this->setProjectSetting( 'project-last-record', json_encode( $lastRecord ) );
 
 		return $recordName;
 
@@ -1465,17 +1694,23 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		{
 			// Clear the record counter.
 			$this->setProjectSetting( 'project-record-counter', '{}' );
-			// Clear the last created record.
-			$this->setProjectSetting( 'project-last-record', '{}' );
 		}
 
-		$dagID = $this->dagQueryID( $_GET['dag'], true );
+		if ( ! isset( $_GET['dag'] ) && isset( $_COOKIE['custom-record-naming-survey-dag'] ) )
+		{
+			$dagID = $_COOKIE['custom-record-naming-survey-dag'];
+		}
+		else
+		{
+			$dagID = $_GET['dag'];
+		}
+		$dagID = $this->dagQueryID( $dagID, true );
 		$dagID = ( $dagID === false ) ? '' : $dagID;
 		$armID = $this->getArmIdFromEventId( $eventID );
 
 		// Identify the set of settings for the arm.
 		$listSettingArmIDs = $this->getProjectSetting( 'scheme-arm' );
-		if ( ! in_array( $armID, $listSettingArmIDs ) )
+		if ( ! is_array( $listSettingArmIDs ) || ! in_array( $armID, $listSettingArmIDs ) )
 		{
 			return false;
 		}
@@ -1485,7 +1720,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$groupCode = $this->getGroupCode( $dagID, $armSettingID );
 		$groupCode = ( $groupCode === false ) ? '' : $groupCode;
 
-		$newRecordID = $this->generateRecordName( $armID, $armSettingID, $groupCode, $oldRecordID );
+		$newRecordID =
+			$this->generateRecordName( $armID, $armSettingID, $groupCode, $oldRecordID, true );
 		if ( $dagID !== '' )
 		{
 			$this->setDAG( $oldRecordID, $dagID );
@@ -1571,6 +1807,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 	private $canAddParticipant;
 	private $hasSettingsForArm;
+	private $blockedBySettings;
 	private $userSuppliedComponentPrompt;
 	private $userSuppliedComponentRegex;
 	private $fieldLookupPrompt;
@@ -1579,6 +1816,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	private $listArmIdEvent;
 	private $userGroup;
 	private $groupCode;
+	private $allowNew;
 
 }
 

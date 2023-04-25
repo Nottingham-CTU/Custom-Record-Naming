@@ -1,5 +1,8 @@
 <?php
 
+namespace Nottingham\CustomRecordNaming;
+
+
 if ( SUPER_USER != 1 )
 {
 	exit;
