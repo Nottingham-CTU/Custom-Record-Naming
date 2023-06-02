@@ -76,6 +76,29 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			return;
 		}
 
+		// If the REDCap UI Tweaker module is enabled, instruct the external modules simplified view
+		// to exclude state tracking settings.
+		if ( $this->isModuleEnabled('redcap_ui_tweaker') )
+		{
+			$moduleDirPrefix = preg_replace( '/_v[^_]*$/', '', $this->getModuleDirectoryName() );
+			$UITweaker = \ExternalModules\ExternalModules::getModuleInstance('redcap_ui_tweaker');
+			if ( method_exists( $UITweaker, 'areExtModFuncExpected' ) &&
+			     $UITweaker->areExtModFuncExpected() )
+			{
+				$UITweaker->addExtModFunc( $moduleDirPrefix, function( $data )
+				{
+					if ( in_array( $data['setting'],
+					               [ 'scheme-arm','project-last-record',
+					                 'project-record-counter' ] ) || $data['value'] == '' ||
+					     preg_match( '/^\[""(,"")*\]$/', $data['value'] ) )
+					{
+						return false;
+					}
+					return true;
+				});
+			}
+		}
+
 		// For survey pages, check if a 'dag' query string parameter is specified and if so set a
 		// cookie to match (in case the parameter is dropped during the submission process).
 		if ( $this->isSurveyPage() && isset( $_GET['dag'] ) )
