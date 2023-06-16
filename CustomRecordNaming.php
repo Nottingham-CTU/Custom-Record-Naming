@@ -809,7 +809,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		              [ $newRecordID, ( is_numeric( $repeat_instance ) ? $repeat_instance : 1 ),
 		                $instrument, $event_id, $project_id ] );
 		// Redirect to the survey link for the now established record.
-		$_SESSION['module_customrecordnaming_resubmit'] = time();
+		$_SESSION['module_customrecordnaming_resubmit'] = [ 't' => time(), 'f' => $instrument ];
 		$this->redirect( \REDCap::getSurveyLink( $newRecordID, $instrument, $event_id ) );
 	}
 
@@ -827,7 +827,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$this->performSurveyRename( $record, $event_id );
 		setcookie( 'redcap_custom_record_name', '', 1, '', '', true );
 		setcookie( 'redcap_custom_record_name_fieldval', '', 1, '', '', true );
-		$_SESSION['module_customrecordnaming_resubmit'] = time();
+		$_SESSION['module_customrecordnaming_resubmit'] = [ 't' => time(), 'f' => $instrument ];
 	}
 
 
@@ -836,9 +836,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	                                        $survey_hash, $response_id, $repeat_instance )
 	{
 		// If a survey resubmit is required, perform this once the page has loaded.
-		if ( $_SESSION['module_customrecordnaming_resubmit'] > time() - 60 )
+		if ( isset( $_SESSION['module_customrecordnaming_resubmit'] ) &&
+		     $_SESSION['module_customrecordnaming_resubmit']['t'] > time() - 40 )
 		{
-			unset( $_SESSION['module_customrecordnaming_resubmit'] );
+			if ( $_SESSION['module_customrecordnaming_resubmit']['f'] == $instrument )
+			{
 
 ?>
 <script type="text/javascript">
@@ -849,6 +851,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 </script>
 <?php
 
+			}
+			unset( $_SESSION['module_customrecordnaming_resubmit'] );
 			return;
 		}
 
