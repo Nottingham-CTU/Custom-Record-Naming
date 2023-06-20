@@ -490,7 +490,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 						                        '<a href="$1"$2>$3</a>',
 						                        htmlspecialchars( $dagFormatNotice,
 						                                          ENT_NOQUOTES ) ) );
-				$dagFormatNotice = str_replace( "\n", '<br>', $dagFormatNotice );
+				$dagFormatNotice = str_replace( [ "\r\n", "\n" ], '<br>', $dagFormatNotice );
 				$dagFormatNotice = '<img src="' . APP_PATH_WEBROOT .
 					               '/Resources/images/exclamation_orange.png"> ' . $dagFormatNotice;
 				$dagFormatNotice = addslashes( $dagFormatNotice );
