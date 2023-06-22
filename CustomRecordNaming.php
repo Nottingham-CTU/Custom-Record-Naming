@@ -76,6 +76,29 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			return;
 		}
 
+		// If the REDCap UI Tweaker module is enabled, instruct the external modules simplified view
+		// to exclude state tracking settings.
+		if ( $this->isModuleEnabled('redcap_ui_tweaker') )
+		{
+			$moduleDirPrefix = preg_replace( '/_v[^_]*$/', '', $this->getModuleDirectoryName() );
+			$UITweaker = \ExternalModules\ExternalModules::getModuleInstance('redcap_ui_tweaker');
+			if ( method_exists( $UITweaker, 'areExtModFuncExpected' ) &&
+			     $UITweaker->areExtModFuncExpected() )
+			{
+				$UITweaker->addExtModFunc( $moduleDirPrefix, function( $data )
+				{
+					if ( in_array( $data['setting'],
+					               [ 'scheme-arm','project-last-record',
+					                 'project-record-counter' ] ) || $data['value'] == '' ||
+					     preg_match( '/^\[""(,"")*\]$/', $data['value'] ) )
+					{
+						return false;
+					}
+					return true;
+				});
+			}
+		}
+
 		// For survey pages, check if a 'dag' query string parameter is specified and if so set a
 		// cookie to match (in case the parameter is dropped during the submission process).
 		if ( $this->isSurveyPage() && isset( $_GET['dag'] ) )
@@ -96,9 +119,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$this->groupCode = null;
 		$this->allowNew = '';
 
+		$pagePath = substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ) );
+
 		// Perform a redirect when a new record is created to use the appropriate participant ID.
 		if ( defined( 'PROJECT_ID' ) && defined( 'USERID' ) &&
-			 substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 10 ) == 'DataEntry/' )
+			 ( substr( $pagePath, 0, 11 ) == 'DataEntry/?' ||
+			   substr( $pagePath, 0, 19 ) == 'DataEntry/index.php' ||
+			   substr( $pagePath, 0, 25 ) == 'DataEntry/record_home.php' ||
+			   substr( $pagePath, 0, 37 ) == 'DataEntry/record_status_dashboard.php' ) )
 		{
 			// Determine the current DAG and arm.
 			$userRights = \REDCap::getUserRights( USERID );
@@ -111,8 +139,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 				$armNum = $_GET['arm'];
 			}
-			elseif ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 37 ) ==
-			            'DataEntry/record_status_dashboard.php' )
+			elseif ( substr( $pagePath, 0, 37 ) == 'DataEntry/record_status_dashboard.php' )
 			{
 				$savedArmNum =
 					\UIState::getUIStateValue( PROJECT_ID, 'record_status_dashboard', 'arm' );
@@ -238,7 +265,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 			// If a new record is being submitted, check that the record name is still unused. If
 			// it is not, then generate a new one.
-			if ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 19 ) == 'DataEntry/index.php' &&
+			if ( substr( $pagePath, 0, 19 ) == 'DataEntry/index.php' &&
 				 isset( $_POST[ 'module-custom-record-naming-new-record' ] ) )
 			{
 				unset( $_POST[ 'module-custom-record-naming-new-record' ] );
@@ -362,13 +389,16 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 
 
+		$pagePath = substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ) );
+
+
 		// On the DAGs page, use the DAG format restriction to constrain how DAGs can be named,
 		// and/or display the defined notice explaining how to name DAGs.
 		$dagFormat = $this->getProjectSetting( 'dag-format' );
 		$dagFormatNotice = $this->getProjectSetting( 'dag-format-notice' );
 		if ( ( $dagFormat != '' || $dagFormatNotice != '' ) &&
-		     ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 17 ) == 'DataAccessGroups/' ||
-		       ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 9 ) == 'index.php' &&
+		     ( substr( $pagePath, 0, 17 ) == 'DataAccessGroups/' ||
+		       ( substr( $pagePath, 0, 9 ) == 'index.php' &&
 		         $_GET['route'] == 'DataAccessGroupsController:index' ) ) )
 		{
 			$dagFormatErrorText = 'The DAG name you entered does not conform to the allowed' .
@@ -460,7 +490,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 						                        '<a href="$1"$2>$3</a>',
 						                        htmlspecialchars( $dagFormatNotice,
 						                                          ENT_NOQUOTES ) ) );
-				$dagFormatNotice = str_replace( "\n", '<br>', $dagFormatNotice );
+				$dagFormatNotice = str_replace( [ "\r\n", "\n" ], '<br>', $dagFormatNotice );
 				$dagFormatNotice = '<img src="' . APP_PATH_WEBROOT .
 					               '/Resources/images/exclamation_orange.png"> ' . $dagFormatNotice;
 				$dagFormatNotice = addslashes( $dagFormatNotice );
@@ -483,9 +513,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 		// On the Add/Edit Records and Record Status Dashboard pages, amend the 'add new record'
 		// button if required.
-		if ( ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 25 ) == 'DataEntry/record_home.php' ||
-		       substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 37 ) ==
-		                                                'DataEntry/record_status_dashboard.php' ) )
+		if ( ( substr( $pagePath, 0, 25 ) == 'DataEntry/record_home.php' ||
+		       substr( $pagePath, 0, 37 ) == 'DataEntry/record_status_dashboard.php' ) )
 		{
 			$addText1 = $GLOBALS['lang']['data_entry_46'];
 			$addText2 = $GLOBALS['lang']['data_entry_46'] . ' ' . $GLOBALS['lang']['data_entry_442'];
@@ -580,7 +609,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		// administrators) then ensure the drop down is set to the user's DAG.
 		// Denote the record as new so the module can check the record name is still unused upon
 		// submission.
-		if ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 19 ) == 'DataEntry/index.php' &&
+		if ( substr( $pagePath, 0, 19 ) == 'DataEntry/index.php' &&
 			 isset( $_GET[ 'id' ] ) && $this->countRecords( $_GET[ 'id' ] ) == 0 )
 		{
 
@@ -627,8 +656,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 		// Add public survey links for DAGs.
-		if ( ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 31 ) ==
-		                                                       'Surveys/invite_participants.php' ) )
+		if ( ( substr( $pagePath, 0, 31 ) == 'Surveys/invite_participants.php' ) )
 		{
 			$listDAGs = \REDCap::getGroupNames( false );
 			if ( ! empty( $listDAGs ) )
@@ -781,7 +809,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		              [ $newRecordID, ( is_numeric( $repeat_instance ) ? $repeat_instance : 1 ),
 		                $instrument, $event_id, $project_id ] );
 		// Redirect to the survey link for the now established record.
-		$_SESSION['module_customrecordnaming_resubmit'] = time();
+		$_SESSION['module_customrecordnaming_resubmit'] = [ 't' => time(), 'f' => $instrument ];
 		$this->redirect( \REDCap::getSurveyLink( $newRecordID, $instrument, $event_id ) );
 	}
 
@@ -799,7 +827,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$this->performSurveyRename( $record, $event_id );
 		setcookie( 'redcap_custom_record_name', '', 1, '', '', true );
 		setcookie( 'redcap_custom_record_name_fieldval', '', 1, '', '', true );
-		$_SESSION['module_customrecordnaming_resubmit'] = time();
+		$_SESSION['module_customrecordnaming_resubmit'] = [ 't' => time(), 'f' => $instrument ];
 	}
 
 
@@ -808,9 +836,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	                                        $survey_hash, $response_id, $repeat_instance )
 	{
 		// If a survey resubmit is required, perform this once the page has loaded.
-		if ( $_SESSION['module_customrecordnaming_resubmit'] > time() - 60 )
+		if ( isset( $_SESSION['module_customrecordnaming_resubmit'] ) &&
+		     $_SESSION['module_customrecordnaming_resubmit']['t'] > time() - 40 )
 		{
-			unset( $_SESSION['module_customrecordnaming_resubmit'] );
+			if ( $_SESSION['module_customrecordnaming_resubmit']['f'] == $instrument )
+			{
 
 ?>
 <script type="text/javascript">
@@ -821,6 +851,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 </script>
 <?php
 
+			}
+			unset( $_SESSION['module_customrecordnaming_resubmit'] );
 			return;
 		}
 

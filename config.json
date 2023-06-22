@@ -191,12 +191,6 @@
 			"name" : "",
 			"type" : "text",
 			"super-users-only" : true
-		},
-		{
-			"key" : "project-last-record",
-			"name" : "",
-			"type" : "text",
-			"super-users-only" : true
 		}
 	]
 }
