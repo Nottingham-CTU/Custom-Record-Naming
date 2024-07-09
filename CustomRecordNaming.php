@@ -88,7 +88,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$UITweaker->addExtModFunc( $moduleDirPrefix, function( $data )
 				{
 					if ( in_array( $data['setting'],
-					               [ 'scheme-arm','project-last-record',
+					               [ 'scheme-settings', 'scheme-arm', 'project-last-record',
 					                 'project-record-counter' ] ) || $data['value'] == '' ||
 					     preg_match( '/^\[""(,"")*\]$/', $data['value'] ) )
 					{
@@ -997,6 +997,33 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	function escapeHTML( $text )
 	{
 		return htmlspecialchars( $text, ENT_QUOTES );
+	}
+
+
+
+	// Exclude state tracking settings from settings exports.
+	public function exportProjectSettings()
+	{
+		$this->getArmIdFromNum(1);
+		$listSettings = [];
+		$listFullSettings = $this->getProjectSettings();
+		foreach ( $listFullSettings as $key => $value )
+		{
+			if ( ! in_array( $key, [ 'enabled', 'scheme-settings',
+			                         'project-last-record', 'project-record-counter' ] ) )
+			{
+				$listSettings[ $key ] = $value;
+				if ( $key == 'scheme-arm' )
+				{
+					array_walk( $listSettings[ $key ],
+					            function( &$val )
+					            {
+					              $val = '' . array_search( $val, $this->listArmIdNum );
+					            } );
+				}
+			}
+		}
+		return $listSettings;
 	}
 
 
