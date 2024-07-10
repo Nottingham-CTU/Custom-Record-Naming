@@ -1012,15 +1012,15 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( ! in_array( $key, [ 'enabled', 'scheme-settings',
 			                         'project-last-record', 'project-record-counter' ] ) )
 			{
-				$listSettings[ $key ] = $value;
 				if ( $key == 'scheme-arm' )
 				{
-					array_walk( $listSettings[ $key ],
+					array_walk( $value,
 					            function( &$val )
 					            {
 					              $val = '' . array_search( $val, $this->listArmIdNum );
 					            } );
 				}
+				$listSettings[] = [ 'key' => $key, 'value' => $value ];
 			}
 		}
 		return $listSettings;
