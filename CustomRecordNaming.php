@@ -88,7 +88,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$UITweaker->addExtModFunc( $moduleDirPrefix, function( $data )
 				{
 					if ( in_array( $data['setting'],
-					               [ 'scheme-arm','project-last-record',
+					               [ 'scheme-settings', 'scheme-arm', 'project-last-record',
 					                 'project-record-counter' ] ) || $data['value'] == '' ||
 					     preg_match( '/^\[""(,"")*\]$/', $data['value'] ) )
 					{
@@ -272,8 +272,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$submittedRecordName = $_POST[ \REDCap::getRecordIdField() ];
 				$newRecordName =
 						$this->generateRecordName( $armID, $armSettingID, $groupCode, null, true );
-				if ( $this->countRecords( $submittedRecordName ) > 0 &&
-				     $submittedRecordName != $newRecordName )
+				if ( $submittedRecordName != $newRecordName )
 				{
 					$_SESSION['module_customrecordnaming_amended'] =
 									[ $submittedRecordName, $newRecordName ];
@@ -759,9 +758,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 <script type="text/javascript">
   $(function()
   {
-    var vDialog = $('<div><p>The record <?php
+    var vDialog = $('<div><p>The record name/number <?php
 			echo $this->escapeHTML( $_SESSION['module_customrecordnaming_amended'][0] );
-?> already exists in the project.<br>Your record has been created as <b><?php
+?> already exists in the project.<br>This record has been created as <b><?php
 			echo $this->escapeHTML( $_SESSION['module_customrecordnaming_amended'][1] );
 ?></b>.</p></div>')
     vDialog.dialog(
@@ -770,7 +769,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
       modal:true,
       resizable:false,
       title:'Record name updated',
-      width:420
+      width:450
     })
   })
 </script>
@@ -998,6 +997,33 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	function escapeHTML( $text )
 	{
 		return htmlspecialchars( $text, ENT_QUOTES );
+	}
+
+
+
+	// Exclude state tracking settings from settings exports.
+	public function exportProjectSettings()
+	{
+		$this->getArmIdFromNum(1);
+		$listSettings = [];
+		$listFullSettings = $this->getProjectSettings();
+		foreach ( $listFullSettings as $key => $value )
+		{
+			if ( ! in_array( $key, [ 'enabled', 'scheme-settings',
+			                         'project-last-record', 'project-record-counter' ] ) )
+			{
+				if ( $key == 'scheme-arm' )
+				{
+					array_walk( $value,
+					            function( &$val )
+					            {
+					              $val = '' . array_search( $val, $this->listArmIdNum );
+					            } );
+				}
+				$listSettings[] = [ 'key' => $key, 'value' => $value ];
+			}
+		}
+		return $listSettings;
 	}
 
 
@@ -1413,7 +1439,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		// Get the user's username.
 		$currentUser = ( USERID == '[survey respondent]' ? '' : USERID );
 
+		// Determine the database locking ID.
+		$lockingID = $GLOBALS['db'] . '.custom_record_naming.p' . $this->getProjectId();
+
 		// Determine the record number using the record counter.
+		// Apply the database lock so only one session can amend the record counter at a time.
 		$counterID = 'project';
 		if ( strpos( $numbering, 'A' ) !== false )
 		{
@@ -1428,6 +1458,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$counterID .= '/' . str_replace( ['\\','/'], ['\\\\','\\'], $counterComponent );
 			}
 		}
+		$this->query( 'DO GET_LOCK(?,40)', [ $lockingID ] );
 		$recordCounter = json_decode( $this->getProjectSetting( 'project-record-counter' ), true );
 
 		// If the record counter has not been started yet, set to the starting number.
@@ -1441,7 +1472,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 				$recordCounter[ $counterID ] = intval( $startNum );
 			}
-			$this->setProjectSetting( 'project-record-counter', json_encode( $recordCounter ) );
 		}
 
 		// Create the record name.
@@ -1578,6 +1608,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 		$this->setProjectSetting( 'project-record-counter', json_encode( $recordCounter ) );
 
+		// Release the database lock.
+		$this->query( 'DO RELEASE_LOCK(?)', [ $lockingID ] );
+
+		// Return the record name.
 		return $recordName;
 
 	}
