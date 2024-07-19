@@ -1470,7 +1470,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$recordCounter = json_decode( $this->getProjectSetting( 'project-record-counter' ), true );
 
 		// If the record counter has not been started yet, set to the starting number.
-		if ( ! isset( $recordCounter[ $counterID ] ) )
+		// If the record counter is less than the starting number, set to the starting number.
+		if ( ! isset( $recordCounter[ $counterID ] ) ||
+		     ( $startNum != '' && intval( $startNum ) > $recordCounter[ $counterID ] ) )
 		{
 			if ( $startNum == '' )
 			{
