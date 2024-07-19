@@ -103,9 +103,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		// cookie to match (in case the parameter is dropped during the submission process).
 		if ( $this->isSurveyPage() && isset( $_GET['dag'] ) )
 		{
+			preg_match( '/.*/', $_GET['dag'], $dagVal );
 			setcookie( 'custom-record-naming-survey-dag',
-			           array_reduce( [ $_GET['dag'] ], function( $c, $i ) { return $c . $i; }, '' ),
-			           time() + 60, '', '', true, true );
+			           $dagVal[0], time() + 60, '', '', true, true );
 		}
 
 		$this->canAddRecord = true;
@@ -988,7 +988,13 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	// Use only for e.g. JSON or CSV output.
 	function echoText( $text )
 	{
-		echo array_reduce( [ $text ], function( $c, $i ) { return $c . $i; }, '' );
+		$text = htmlspecialchars( $text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_XHTML );
+		$chars = [ '&amp;' => 38, '&quot;' => 34, '&apos;' => 39, '&lt;' => 60, '&gt;' => 62 ];
+		$text = preg_split( '/(&(?>amp|quot|apos|lt|gt);)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE );
+		foreach ( $text as $part )
+		{
+			echo isset( $chars[ $part ] ) ? chr( $chars[ $part ] ) : $part;
+		}
 	}
 
 
