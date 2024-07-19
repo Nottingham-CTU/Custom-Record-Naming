@@ -101,11 +101,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 		// For survey pages, check if a 'dag' query string parameter is specified and if so set a
 		// cookie to match (in case the parameter is dropped during the submission process).
-		if ( $this->isSurveyPage() && isset( $_GET['dag'] ) )
+		if ( $this->isSurveyPage() && isset( $_GET['_dag'] ) || isset( $_GET['dag'] ) )
 		{
+			preg_match( '/.*/', ( $_GET['_dag'] ?? $_GET['dag'] ), $dagVal );
 			setcookie( 'custom-record-naming-survey-dag',
-			           array_reduce( [ $_GET['dag'] ], function( $c, $i ) { return $c . $i; }, '' ),
-			           time() + 60, '', '', true, true );
+			           $dagVal[0], time() + 60, '', '', true, true );
 		}
 
 		$this->canAddRecord = true;
@@ -708,10 +708,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$dagURL = $this->dagQueryID( '' );
 ?>
       var vURLTR = $('<tr><td style="border:solid #000 1px;padding:3px"><i>none</i></td>' +
-                     '<td style="border:solid #000 1px;padding:3px">' + vBaseURL + '&amp;dag=' +
+                     '<td style="border:solid #000 1px;padding:3px">' + vBaseURL + '&amp;_dag=' +
                      '<?php echo $this->escapeHTML( $dagURL ); ?></td>' +
                      '<td style="border:solid #000 1px;padding:3px;text-align:center">' +
-                     '<a href="#" data-qr="' + vURLCode + '%26dag%3D' +
+                     '<a href="#" data-qr="' + vURLCode + '%26_dag%3D' +
                      '<?php echo $this->escapeHTML( $dagURL ); ?>">View</a></td></tr>')
       vURLTR.find('td').eq(1).on('click',function(){vFuncSelect(this)})
       vURLTR.find('a[data-qr]').eq(0).on('click',function(e){vFuncQRClick(this);e.preventDefault()})
@@ -723,10 +723,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 ?>
       var vURLTR = $('<tr><td style="border:solid #000 1px;padding:3px">' +
                      '<?php echo $this->escapeHTML( $dagName ); ?></td>' +
-                     '<td style="border:solid #000 1px;padding:3px">' + vBaseURL + '&amp;dag=' +
+                     '<td style="border:solid #000 1px;padding:3px">' + vBaseURL + '&amp;_dag=' +
                      '<?php echo $this->escapeHTML( $dagURL ); ?></td>' +
                      '<td style="border:solid #000 1px;padding:3px;text-align:center">' +
-                     '<a href="#" data-qr="' + vURLCode + '%26dag%3D' +
+                     '<a href="#" data-qr="' + vURLCode + '%26_dag%3D' +
                      '<?php echo $this->escapeHTML( $dagURL ); ?>">View</a></td></tr>')
       vURLTR.find('td').eq(1).on('click',function(){vFuncSelect(this)})
       vURLTR.find('a[data-qr]').eq(0).on('click',function(e){vFuncQRClick(this);e.preventDefault()})
@@ -857,7 +857,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 		// Check that the survey is the public survey and exit this function if not.
 		if ( ! in_array( $survey_hash, $this->getPublicSurveyHashes( $project_id ) ) ||
-		     ( ! isset( $_GET['dag'] ) && empty( \REDCap::getGroupNames() ) ) )
+		     ( ! isset( $_GET['_dag'] ) && ! isset( $_GET['dag'] ) &&
+		       empty( \REDCap::getGroupNames() ) ) )
 		{
 			return;
 		}
@@ -878,14 +879,15 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 
 		// Identify the DAG and check it is valid.
-		if ( $validConfig && ! empty( \REDCap::getGroupNames( false ) ) && ! isset( $_GET['dag'] ) )
+		if ( $validConfig && ! empty( \REDCap::getGroupNames( false ) ) &&
+		     ! isset( $_GET['_dag'] ) && ! isset( $_GET['dag'] ) )
 		{
 			$validConfig = false;
 		}
 
 		if ( $validConfig )
 		{
-			$dagID = $this->dagQueryID( $_GET['dag'], true );
+			$dagID = $this->dagQueryID( $_GET['_dag'] ?? $_GET['dag'], true );
 			if ( $dagID === false || $this->getGroupCode( $dagID, $armSettingID ) === false )
 			{
 				$validConfig = false;
@@ -902,7 +904,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$this->exitAfterHook();
 			return;
 		}
-		$dagParam = preg_replace( '/[^0-9A-Za-z]/', '', $_GET['dag'] );
+		$dagParam = preg_replace( '/[^0-9A-Za-z]/', '', $_GET['_dag'] ?? $_GET['dag'] );
 
 		// Check if a user supplied component is expected, so that the user can be prompted for it
 		// when submitting the survey.
@@ -931,7 +933,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 ?>
 <script type="text/javascript">
   $(function(){
-    $('#form').attr('action', $('#form').attr('action') + '&dag=<?php echo $dagParam; ?>' )
+    $('#form').attr('action', $('#form').attr('action') + '&_dag=<?php echo $dagParam; ?>' )
 <?php
 
 		if ( $uPrompt !== null || $fPrompt !== null )
@@ -988,7 +990,13 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	// Use only for e.g. JSON or CSV output.
 	function echoText( $text )
 	{
-		echo array_reduce( [ $text ], function( $c, $i ) { return $c . $i; }, '' );
+		$text = htmlspecialchars( $text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_XHTML );
+		$chars = [ '&amp;' => 38, '&quot;' => 34, '&apos;' => 39, '&lt;' => 60, '&gt;' => 62 ];
+		$text = preg_split( '/(&(?>amp|quot|apos|lt|gt);)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE );
+		foreach ( $text as $part )
+		{
+			echo isset( $chars[ $part ] ) ? chr( $chars[ $part ] ) : $part;
+		}
 	}
 
 
@@ -1462,7 +1470,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$recordCounter = json_decode( $this->getProjectSetting( 'project-record-counter' ), true );
 
 		// If the record counter has not been started yet, set to the starting number.
-		if ( ! isset( $recordCounter[ $counterID ] ) )
+		// If the record counter is less than the starting number, set to the starting number.
+		if ( ! isset( $recordCounter[ $counterID ] ) ||
+		     ( $startNum != '' && intval( $startNum ) > $recordCounter[ $counterID ] ) )
 		{
 			if ( $startNum == '' )
 			{
@@ -1762,13 +1772,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$this->setProjectSetting( 'project-record-counter', '{}' );
 		}
 
-		if ( ! isset( $_GET['dag'] ) && isset( $_COOKIE['custom-record-naming-survey-dag'] ) )
+		if ( ! isset( $_GET['_dag'] ) && ! isset( $_GET['dag'] ) &&
+		     isset( $_COOKIE['custom-record-naming-survey-dag'] ) )
 		{
 			$dagID = $_COOKIE['custom-record-naming-survey-dag'];
 		}
 		else
 		{
-			$dagID = $_GET['dag'];
+			$dagID = $_GET['_dag'] ?? $_GET['dag'];
 		}
 		$dagID = $this->dagQueryID( $dagID, true );
 		$dagID = ( $dagID === false ) ? '' : $dagID;
@@ -1794,7 +1805,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 		if ( $oldRecordID != $newRecordID )
 		{
-			\DataEntry::changeRecordId( $oldRecordID, $newRecordID );
+			$newRecordIDFinal = $newRecordID;
+			$newRecordIDCtr = 0;
+			while ( $this->countRecords( $newRecordIDFinal ) == 1 )
+			{
+				$newRecordIDCtr++;
+				$newRecordIDFinal = $newRecordID . '--' . $newRecordIDCtr;
+			}
+			\DataEntry::changeRecordId( $oldRecordID, $newRecordIDFinal );
 		}
 		return $newRecordID;
 	}
