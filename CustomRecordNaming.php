@@ -1803,7 +1803,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 		if ( $oldRecordID != $newRecordID )
 		{
-			\DataEntry::changeRecordId( $oldRecordID, $newRecordID );
+			$newRecordIDFinal = $newRecordID;
+			$newRecordIDCtr = 0;
+			while ( $this->countRecords( $newRecordIDFinal ) == 1 )
+			{
+				$newRecordIDCtr++;
+				$newRecordIDFinal = $newRecordID . '--' . $newRecordIDCtr;
+			}
+			\DataEntry::changeRecordId( $oldRecordID, $newRecordIDFinal );
 		}
 		return $newRecordID;
 	}
