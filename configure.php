@@ -143,6 +143,10 @@ function makeSettingRow( $field, $name, $type, $choices, $value )
 	{
 		$row .= ' data-type="T"';
 	}
+	elseif ( strpos( $field, 'public-survey-logic' ) !== false )
+	{
+		$row .= ' data-type="S"';
+	}
 	elseif ( strpos( $field, 'field-lookup' ) !== false )
 	{
 		$row .= ' data-type="F"';
@@ -645,19 +649,22 @@ $(function()
 if ( $module->getProjectStatus() != 'DEV' ) // Project placed into production status.
 {
 ?>
-  $('<div>This project is in production. It is recommended that you do not change naming schemes ' +
-    'for arms which already contain records.</div>').dialog(
+  if ( document.referrer.indexOf('custom_record_naming') == -1 )
   {
-    buttons:
+    $('<div>This project is in production. It is recommended that you do not change naming ' +
+      'schemes for arms which already contain records.</div>').dialog(
     {
-      "Go Back" : function() { window.history.back() },
-      "Continue" : function() { $(this).dialog('close') }
-    },
-    modal: true,
-    open: function() { $('.ui-dialog-titlebar-close',$(this).closest('.ui-dialog')).hide() },
-    title: 'Warning',
-    width: 400
-  })
+      buttons:
+      {
+        "Go Back" : function() { window.history.back() },
+        "Continue" : function() { $(this).dialog('close') }
+      },
+      modal: true,
+      open: function() { $('.ui-dialog-titlebar-close',$(this).closest('.ui-dialog')).hide() },
+      title: 'Warning',
+      width: 400
+    })
+  }
 <?php
 }
 ?>

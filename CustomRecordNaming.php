@@ -101,7 +101,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 		// For survey pages, check if a 'dag' query string parameter is specified and if so set a
 		// cookie to match (in case the parameter is dropped during the submission process).
-		if ( $this->isSurveyPage() && isset( $_GET['_dag'] ) || isset( $_GET['dag'] ) )
+		if ( $this->isSurveyPage() && ( isset( $_GET['_dag'] ) || isset( $_GET['dag'] ) ) )
 		{
 			preg_match( '/.*/', ( $_GET['_dag'] ?? $_GET['dag'] ), $dagVal );
 			setcookie( 'custom-record-naming-survey-dag',
@@ -906,11 +906,29 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		}
 		$dagParam = preg_replace( '/[^0-9A-Za-z]/', '', $_GET['_dag'] ?? $_GET['dag'] );
 
+		// Get the public survey logic mode and apply it if applicable.
+		$nameType = $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ];
+		$pubSvLogicMode =
+				$this->getProjectSetting( 'scheme-public-survey-logic-mode' )[ $armSettingID ];
+		if ( strpos( $nameType, 'S' ) !== false )
+		{
+			if ( substr( $pubSvLogicMode, 0, 1 ) == 'F' ) // replace following type
+			{
+				for ( $i = 0; $i < intval( substr( $pubSvLogicMode, 1, 1 ) ); $i++ )
+				{
+					$nameType = preg_replace( '/S./', 'S', $nameType );
+				}
+			}
+			elseif ( $pubSvLogicMode == 'A' ) // replace all types
+			{
+				$nameType = 'S';
+			}
+		}
+
 		// Check if a user supplied component is expected, so that the user can be prompted for it
 		// when submitting the survey.
 		$uPrompt = null;
-		if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
-		             'U' ) !== false )
+		if ( strpos( $nameType, 'U' ) !== false )
 		{
 			$uPrompt = $this->getProjectSetting( 'scheme-prompt-user-supplied' )[ $armSettingID ];
 			$uRegex = $this->getProjectSetting( 'scheme-user-supplied-format' )[ $armSettingID ];
@@ -919,8 +937,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		// Check if a field lookup component is expected, so that the user can be prompted for it
 		// when submitting the survey.
 		$fPrompt = null;
-		if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
-		             'F' ) !== false )
+		if ( strpos( $nameType, 'F' ) !== false )
 		{
 			$fPrompt = $this->getProjectSetting( 'scheme-prompt-field-lookup' )[ $armSettingID ];
 			$fList =
@@ -1062,6 +1079,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
                  'G' => 'DAG',
                  'U' => 'User supplied',
                  'T' => 'Timestamp',
+                 'S' => 'Public survey logic',
                  'F' => 'Field value lookup',
                  'C' => 'Check digits',
                  'Z' => 'Username',
@@ -1406,8 +1424,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 	// Generate a new record name.
-	protected function generateRecordName( $armID, $armSettingID, $groupCode,
-	                                       $oldName = null, $incrementCounter = false )
+	protected function generateRecordName( $armID, $armSettingID, $groupCode, $oldName = null,
+	                                       $incrementCounter = false, $eventID = null )
 	{
 		// Get the scheme settings for the arm.
 		$numbering = $this->getProjectSetting( 'scheme-numbering' )[ $armSettingID ];
@@ -1420,7 +1438,33 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$zeroPad = $this->getProjectSetting( 'scheme-number-pad' )[ $armSettingID ];
 		$timestampFormat = $this->getProjectSetting( 'scheme-timestamp-format' )[ $armSettingID ];
 		$timestampTZ = $this->getProjectSetting( 'scheme-timestamp-tz' )[ $armSettingID ];
+		$pubSvLogic = $this->getProjectSetting( 'scheme-public-survey-logic' )[ $armSettingID ];
+		$pubSvLogicMode =
+				$this->getProjectSetting( 'scheme-public-survey-logic-mode' )[ $armSettingID ];
 		$chkDigitAlg = $this->getProjectSetting( 'scheme-check-digit-algorithm' )[ $armSettingID ];
+
+		// Amend the name type based on whether this is a public survey submission
+		// (i.e. whether an old record name is present).
+		if ( $oldName === null )
+		{
+			// Not a public survey submission, ignore the public survey logic.
+			$nameType = str_replace( 'S', '', $nameType );
+		}
+		elseif ( strpos( $nameType, 'S' ) !== false )
+		{
+			// This is a public survey submission, apply the logic mode if not standard.
+			if ( substr( $pubSvLogicMode, 0, 1 ) == 'F' ) // replace following type
+			{
+				for ( $i = 0; $i < intval( substr( $pubSvLogicMode, 1, 1 ) ); $i++ )
+				{
+					$nameType = preg_replace( '/S./', 'S', $nameType );
+				}
+			}
+			elseif ( $pubSvLogicMode == 'A' ) // replace all types
+			{
+				$nameType = 'S';
+			}
+		}
 
 		// Get the user supplied component if it has been entered.
 		$suppliedComponent = '';
@@ -1435,6 +1479,17 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		{
 			$timestamp = ( $timestampTZ == 'U' ) ? gmdate( $timestampFormat ) // UTC
 			                                     : date( $timestampFormat );  // server
+		}
+
+		// Get the public survey logic component if it has been entered (public surveys only).
+		$pubSurveyComponent = '';
+		if ( strpos( $nameType, 'S' ) !== false )
+		{
+			$pubSurveyInstrument = array_keys( \REDCap::getInstrumentNames() )[0];
+			$pubSurveyComponent = \REDCap::evaluateLogic( $pubSvLogic, $this->getProjectId(),
+			                                              $oldName, $eventID, 1,
+			                                              $pubSurveyInstrument,
+			                                              $pubSurveyInstrument, null, true );
 		}
 
 		// Get the field value from the lookup if it has been entered.
@@ -1458,7 +1513,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$counterID = "$armID";
 		}
 		foreach ( [ 'G' => "$groupCode", 'U' => $suppliedComponent, 'T' => $timestamp,
-		            'F' => $suppliedFieldValue, 'Z' => $currentUser ]
+		            'F' => $suppliedFieldValue, 'Z' => $currentUser, 'S' => $pubSurveyComponent ]
 		          as $numberingCode => $counterComponent )
 		{
 			if ( strpos( $numbering, $numberingCode ) !== false )
@@ -1570,6 +1625,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 					elseif ( substr( $nameType, $i, 1 ) == 'T' ) // timestamp
 					{
 						$recordName .= $timestamp;
+					}
+					elseif ( substr( $nameType, $i, 1 ) == 'S' ) // public survey component
+					{
+						$recordName .= $pubSurveyComponent;
 					}
 					elseif ( substr( $nameType, $i, 1 ) == 'F' ) // field value lookup
 					{
@@ -1797,8 +1856,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$groupCode = $this->getGroupCode( $dagID, $armSettingID );
 		$groupCode = ( $groupCode === false ) ? '' : $groupCode;
 
-		$newRecordID =
-			$this->generateRecordName( $armID, $armSettingID, $groupCode, $oldRecordID, true );
+		$newRecordID = $this->generateRecordName( $armID, $armSettingID, $groupCode,
+		                                          $oldRecordID, true, $eventID );
 		if ( $dagID !== '' )
 		{
 			$this->setDAG( $oldRecordID, $dagID );

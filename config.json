@@ -132,6 +132,23 @@
 					]
 				},
 				{
+					"key" : "scheme-public-survey-logic",
+					"name" : "Public survey logic (used to generate name from submitted data)",
+					"type" : "textarea"
+				},
+				{
+					"key" : "scheme-public-survey-logic-mode",
+					"name" : "Public survey logic mode",
+					"type" : "radio",
+					"choices" : [
+						{ "value" : "", "name" : "Standard (ignore if not survey)" },
+						{ "value" : "F1", "name" : "Replace following name type on survey" },
+						{ "value" : "F2", "name" : "Replace following 2 name types on survey" },
+						{ "value" : "F3", "name" : "Replace following 3 name types on survey" },
+						{ "value" : "A", "name" : "Replace all other name types on survey" }
+					]
+				},
+				{
 					"key" : "scheme-prompt-field-lookup",
 					"name" : "Prompt for field lookup",
 					"type" : "textarea"

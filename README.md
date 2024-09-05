@@ -41,6 +41,11 @@ options:
   A value which the user will be prompted for when they create the record.
 * **Timestamp**<br>
   The current date/time, according to the specified format and timezone.
+* **Public survey logic**<br>
+  If the record is created via a public survey, run the logic on the submitted record to get the
+  name component. This could just reference a single field or it could combine fields using
+  calculation functions.<br>
+  *Note that this component is ignored if the record is not created via survey.*
 * **Field value lookup**<br>
   A field value from an existing record in the project, which the user will be prompted for when
   they create the record.
@@ -135,6 +140,28 @@ This defines the format of the timestamp. This uses the
 ### Timezone for timestamp
 The timezone which will be used when generating the timestamp. This can either be *UTC* or the
 *Server timezone*.
+
+### Public survey logic
+The calculation logic which will generate the name component from the submitted public survey. This
+is only used for public surveys and is ignored for records not created using a public survey.
+
+### Public survey logic mode
+Choose how the naming will proceed when the public survey logic component is used:
+* **Standard** - will insert the component into the name as defined by the record name type.
+* **Replace following name type** - will omit the item immediately following the public survey logic
+  component in the record name type.
+* **Replace following 2 name types** - will omit the 2 items immediately following the public survey
+  logic component in the record name type.
+* **Replace following 3 name types** - will omit the 3 items immediately following the public survey
+  logic component in the record name type.
+* **Replace all other name types** - will use *only* the public survey logic component in the record
+  name type.
+
+This will only apply for records created via public survey. Records which are not created via public
+survey will retain the other components from the record name type and the public survey logic
+component will be ignored instead.
+
+The *record name prefix* and *record name suffix* will always be retained.
 
 ### Prompt for field lookup
 The text which will be displayed to the user when they are prompted to select the record for the
