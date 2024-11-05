@@ -1750,11 +1750,26 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	                                     $userSuppliedRegex, $fieldValuePrompt, $listFields,
 	                                     $isSurvey )
 	{
+		$fnFormatPromptText = function( $text )
+		{
+			$text = $this->escapeHTML( $text );
+			$text = nl2br( $text, false );
+			$text = str_replace( ["\r", "\n"], '', $text );
+			$fnParse = function( $m )
+			{
+				return '<' . $m[2] . $m[4] .
+				       ( $m[2] == '' ? '' : ( ' href="' . $m[3] . '" target="_blank"' ) ) .
+				       '>' . $m[5] . '</' . $m[6] . '>';
+			};
+			return preg_replace_callback( '/&lt;((?<t1>a) href=&quot;((?(?=&quot;)|.)*)&quot;|' .
+			                              '(?<t2>b|i))&gt;(.*?)&lt;\/((?P=t1)|(?P=t2))&gt;/',
+			                              $fnParse, $text );
+		};
 		$output = "function ($jsParams) { var vDialog = $('<div></div>');";
 		if ( $userSuppliedPrompt !== null )
 		{
 			$output .= "vDialog.append('<p>" .
-			           nl2br( $this->escapeHTML( $userSuppliedPrompt ) ) . "</p>');" .
+			           $fnFormatPromptText( $userSuppliedPrompt ) . "</p>');" .
 			           "var vUserSupplied = $('<input type=\"text\" style=\"width:99%\">');" .
 			           "vDialog.append($('<p style=\"max-width:100%\"></p>')." .
 			           "append(vUserSupplied));var vUserSuppliedErr = " .
@@ -1767,7 +1782,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( $fieldValuePrompt !== null )
 		{
 			$output .= "vDialog.append('<p>" .
-			           nl2br( $this->escapeHTML( $fieldValuePrompt ) ) . "</p>');" .
+			           $fnFormatPromptText( $fieldValuePrompt ) . "</p>');" .
 			           "var vFieldValues = $('<select><option></option>";
 			foreach ( $listFields as $fieldValue => $fieldDesc )
 			{
