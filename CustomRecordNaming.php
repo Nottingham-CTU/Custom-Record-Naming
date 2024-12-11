@@ -176,7 +176,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$result = json_encode( $newResult );
 			}
 			// Send the amended API response back to the app and exit.
-			echo $result;
+			$this->echoText( $result );
 			flush();
 			$this->exitAfterHook();
 			return '';
