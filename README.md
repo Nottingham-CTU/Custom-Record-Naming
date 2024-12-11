@@ -5,6 +5,12 @@ This REDCap module provides options to adjust how records are automatically numb
 If enabled on a project where DAGs are used, this module also provides DAG specific public survey
 URLs.
 
+**Note for records created via public survey or mobile app:** These records are named in accordance
+with the naming scheme *after* the record is created. If configuring alerts to trigger upon
+submission of the first form, it is recommended that the alert is configured to send after a delay
+of 1 minute instead of sending immediately. This will ensure that the record is renamed before the
+alert is sent.
+
 
 ## Project-level configuration options
 
@@ -142,8 +148,9 @@ The timezone which will be used when generating the timestamp. This can either b
 *Server timezone*.
 
 ### Public survey logic
-The calculation logic which will generate the name component from the submitted public survey. This
-is only used for public surveys and is ignored for records not created using a public survey.
+The calculation logic which will generate the name component from a submitted public survey or when
+a new record is submitted from the REDCap mobile app (not MyCap). This is only used for public
+surveys / mobile app and is ignored for records not created using a public survey or the mobile app.
 
 ### Public survey logic mode
 Choose how the naming will proceed when the public survey logic component is used:
@@ -157,9 +164,9 @@ Choose how the naming will proceed when the public survey logic component is use
 * **Replace all other name types** - will use *only* the public survey logic component in the record
   name type.
 
-This will only apply for records created via public survey. Records which are not created via public
-survey will retain the other components from the record name type and the public survey logic
-component will be ignored instead.
+This will only apply for records created via public survey or the mobile app. Records which are not
+created via public survey or the mobile app will retain the other components from the record name
+type and the public survey logic component will be ignored instead.
 
 The *record name prefix* and *record name suffix* will always be retained.
 
