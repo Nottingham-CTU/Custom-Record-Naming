@@ -1,7 +1,7 @@
 {
 	"name": "Custom Record Naming",
 	"namespace": "Nottingham\\CustomRecordNaming",
-	"description": "Automatically name records according to a custom scheme.<br>Allows per-arm configuration of naming schemes.<br>Supports public surveys (includes per-DAG public survey links).",
+	"description": "Automatically name records according to a custom scheme.<br>Allows per-arm configuration of naming schemes.<br>Supports public surveys (includes per-DAG public survey links) and the REDCap mobile app.",
 	"authors": [
 		{
 			"name": "Richard Dooley",
@@ -9,16 +9,8 @@
 			"institution": "University of Nottingham"
 		}
 	],
-	"permissions": [
-		"redcap_module_system_enable",
-		"redcap_every_page_before_render",
-		"redcap_every_page_top",
-		"redcap_survey_page_top",
-		"redcap_survey_complete",
-		"redcap_save_record"
-	],
-	"framework-version" : 6,
-	"compatibility" : { "redcap-version-min" : "10.6.0" },
+	"framework-version" : 15,
+	"compatibility" : { "redcap-version-min" : "14.5.0" },
 	"links" : {
 		"project" : [
 			{ "name" : "Custom Record Naming", "icon" : "fas fa-list-ul", "url" : "configure.php" }
@@ -129,6 +121,23 @@
 					"choices" : [
 						{ "value" : "U", "name" : "UTC" },
 						{ "value" : "S", "name" : "Server timezone" }
+					]
+				},
+				{
+					"key" : "scheme-public-survey-logic",
+					"name" : "Public survey / mobile app logic (used to generate name from submitted data)",
+					"type" : "textarea"
+				},
+				{
+					"key" : "scheme-public-survey-logic-mode",
+					"name" : "Public survey / mobile app logic mode",
+					"type" : "radio",
+					"choices" : [
+						{ "value" : "", "name" : "Standard (ignore if not survey/app)" },
+						{ "value" : "F1", "name" : "Replace following name type on survey/app" },
+						{ "value" : "F2", "name" : "Replace following 2 name types on survey/app" },
+						{ "value" : "F3", "name" : "Replace following 3 name types on survey/app" },
+						{ "value" : "A", "name" : "Replace all other name types on survey/app" }
 					]
 				},
 				{
