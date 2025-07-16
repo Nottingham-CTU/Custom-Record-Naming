@@ -1145,11 +1145,29 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	// Exclude state tracking settings from settings exports.
 	public function exportProjectSettings()
 	{
+		$fnGetConfigFields = function ( $listConfig ) use ( &$fnGetConfigFields )
+		{
+			$listFields = [];
+			foreach ( $listConfig as $infoConfig )
+			{
+				if ( $infoConfig['type'] == 'sub_settings' )
+				{
+					$listFields += $fnGetConfigFields( $infoConfig['sub_settings'] );
+				}
+				else
+				{
+					$listFields[ $infoConfig['key'] ] = $infoConfig['key'];
+				}
+			}
+			return $listFields;
+		};
 		$this->getArmIdFromNum(1);
 		$listSettings = [];
+		$listSettingFields = $fnGetConfigFields( $this->getConfig()['project-settings'] );
 		$listFullSettings = $this->getProjectSettings();
-		foreach ( $listFullSettings as $key => $value )
+		foreach ( $listSettingFields as $key )
 		{
+			$value = $listFullSettings[ $key ];
 			if ( ! in_array( $key, [ 'enabled', 'scheme-settings',
 			                         'project-last-record', 'project-record-counter' ] ) )
 			{

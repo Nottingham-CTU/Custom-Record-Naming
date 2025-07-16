@@ -197,7 +197,7 @@
 		},
 		{
 			"key" : "project-record-counter",
-			"name" : "",
+			"name" : "Record counters (not for export)",
 			"type" : "text",
 			"super-users-only" : true
 		}
