@@ -189,6 +189,16 @@
 					]
 				},
 				{
+					"key" : "scheme-allow-new-logic",
+					"name" : "Logic to allow new records on this arm",
+					"type" : "textarea"
+				},
+				{
+					"key" : "scheme-allow-access-logic",
+					"name" : "Logic to allow access to this arm",
+					"type" : "textarea"
+				},
+				{
 					"key" : "scheme-instrument",
 					"name" : "Load data entry form",
 					"type" : "text"

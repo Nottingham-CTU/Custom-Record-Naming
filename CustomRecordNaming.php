@@ -257,6 +257,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 			elseif ( substr( $pagePath, 0, 37 ) == 'DataEntry/record_status_dashboard.php' )
 			{
+				// On the record status dashboard, the arm ID can be saved from when the user
+				// previously viewed it, so check this value.
 				$savedArmNum =
 					\UIState::getUIStateValue( PROJECT_ID, 'record_status_dashboard', 'arm' );
 				if ( $savedArmNum != '' )
@@ -283,64 +285,130 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$schemePrefix = '';
 			$schemeSuffix = '';
 
-			// If the arm ID cannot be determined, a record cannot be created.
+			// If the arm ID cannot be determined or there are no settings for the arm, a record
+			// cannot be created.
 			if ( $armID === null )
 			{
 				$this->canAddRecord = false;
 				$this->hasSettingsForArm = false;
+			}
+			else
+			{
+				$listSettingArmIDs = $this->getProjectSetting( 'scheme-arm' );
+				if ( is_array( $listSettingArmIDs ) && in_array( $armID, $listSettingArmIDs ) )
+				{
+					$armSettingID = array_search( $armID, $listSettingArmIDs );
+				}
+				else
+				{
+					$this->canAddRecord = false;
+					$this->hasSettingsForArm = false;
+				}
+			}
+
+			// Check that the logic is satisfied to allow access to the arm and for a new record
+			// to be created.
+			$blockedArmRedirect = false;
+			if ( $this->canAddRecord )
+			{
+				$listAccessArmLogic = $this->getProjectSetting('scheme-allow-access-logic');
+				$accessArmLogic = ( is_array( $listAccessArmLogic ) &&
+				                    isset( $listAccessArmLogic[ $armSettingID ] ) )
+				                  ? $listAccessArmLogic[ $armSettingID ] : '';
+				$accessArmLogic = $this->evaluateLogic( $accessArmLogic );
+				$createRecordLogic = $this->getProjectSetting('scheme-allow-new-logic');
+				$createRecordLogic = ( is_array( $createRecordLogic ) &&
+				                       isset( $createRecordLogic[ $armSettingID ] ) )
+				                     ? $createRecordLogic[ $armSettingID ] : '';
+				$createRecordLogic = $this->evaluateLogic( $createRecordLogic );
+				if ( ! $accessArmLogic || ! $createRecordLogic )
+				{
+					$this->canAddRecord = false;
+					$this->blockedBySettings = true;
+					if ( ! $accessArmLogic )
+					{
+						// If access arm logic is not satisfied, identify an arm we can redirect to.
+						$blockedArmRedirect = 0;
+						foreach ( $listAccessArmLogic as $accessArmLogicID => $accessArmLogic2 )
+						{
+							if ( $this->evaluateLogic( $accessArmLogic2 ) )
+							{
+								$blockedArmRedirect =
+										array_search( $listSettingArmIDs[ $accessArmLogicID ],
+										              $this->listArmIdNum );
+								break;
+							}
+						}
+					}
+				}
+			}
+
+			// If we need to redirect away from a blocked arm, do this here.
+			if ( $blockedArmRedirect !== false )
+			{
+				// If there are no accessible arms, redirect to the project home.
+				if ( $blockedArmRedirect === 0 )
+				{
+					$this->redirect( APP_PATH_WEBROOT_FULL . 'redcap_v' . REDCAP_VERSION .
+					                 '/index.php?pid=' . $this->getProjectId() );
+					return;
+				}
+				// Otherwise redirect to the add/edit records page or the record status dashboard
+				// page with the first accessible arm selected.
+				if ( substr( $pagePath, 0, 25 ) == 'DataEntry/record_home.php' )
+				{
+					$this->redirect( APP_PATH_WEBROOT_FULL . 'redcap_v' . REDCAP_VERSION .
+					                 '/DataEntry/record_home.php?pid=' . $this->getProjectId() .
+					                 '&arm=' . $blockedArmRedirect );
+					return;
+				}
+				$this->redirect( APP_PATH_WEBROOT_FULL . 'redcap_v' . REDCAP_VERSION .
+				                 '/DataEntry/record_status_dashboard.php?pid=' .
+				                 $this->getProjectId() . '&arm=' . $blockedArmRedirect );
+				return;
 			}
 
 			// Check that the settings have been completed for the chosen arm. If there is no
 			// naming scheme for the arm, then a record cannot be created.
 			if ( $this->canAddRecord )
 			{
-				$listSettingArmIDs = $this->getProjectSetting( 'scheme-arm' );
-				if ( is_array( $listSettingArmIDs ) && in_array( $armID, $listSettingArmIDs ) )
+				if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
+				             'U' ) !== false )
 				{
-					$armSettingID = array_search( $armID, $listSettingArmIDs );
-					if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
-					             'U' ) !== false )
-					{
-						$this->userSuppliedComponentPrompt =
-							$this->getProjectSetting( 'scheme-prompt-user-supplied' )[ $armSettingID ];
-						$this->userSuppliedComponentRegex =
-							$this->getProjectSetting( 'scheme-user-supplied-format' )[ $armSettingID ];
-					}
-					if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
-					             'F' ) !== false )
-					{
-						$this->fieldLookupPrompt =
-							$this->getProjectSetting( 'scheme-prompt-field-lookup' )[ $armSettingID ];
-						$this->fieldLookupList =
-							$this->getFieldLookupList(
-								$this->getProjectSetting( 'scheme-field-lookup-value' )[ $armSettingID ],
-								$this->getProjectSetting( 'scheme-field-lookup-desc' )[ $armSettingID ],
-								$this->getProjectSetting( 'scheme-field-lookup-filter' )[ $armSettingID ] );
-					}
-					$schemePrefix = $this->getProjectSetting( 'scheme-name-prefix' )[ $armSettingID ];
-					$schemeSuffix = $this->getProjectSetting( 'scheme-name-suffix' )[ $armSettingID ];
-					$schemeTriggerOn = $this->getProjectSetting( 'scheme-name-trigger' );
-					$triggerOnRCName = ( is_array( $schemeTriggerOn ) &&
-					                     isset( $schemeTriggerOn[ $armSettingID ] ) )
-					                   ? ( $schemeTriggerOn[ $armSettingID ] == 'R' ) : false;
-					$triggerOnMismatch = ( is_array( $schemeTriggerOn ) &&
-					                       isset( $schemeTriggerOn[ $armSettingID ] ) )
-					                     ? ( $schemeTriggerOn[ $armSettingID ] == 'M' ) : false;
-					$this->allowNew = $this->getProjectSetting( 'scheme-allow-new' );
-					$this->allowNew = ( is_array( $this->allowNew ) &&
-					                    isset( $this->allowNew[ $armSettingID ] ) )
-					                  ? $this->allowNew[ $armSettingID ] : '';
-					$schemeAllowNew = ( $this->allowNew != 'S' );
-					if ( ! $schemeAllowNew )
-					{
-						$this->canAddRecord = false;
-						$this->blockedBySettings = true;
-					}
+					$this->userSuppliedComponentPrompt =
+						$this->getProjectSetting( 'scheme-prompt-user-supplied' )[ $armSettingID ];
+					$this->userSuppliedComponentRegex =
+						$this->getProjectSetting( 'scheme-user-supplied-format' )[ $armSettingID ];
 				}
-				else
+				if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
+				             'F' ) !== false )
+				{
+					$this->fieldLookupPrompt =
+						$this->getProjectSetting( 'scheme-prompt-field-lookup' )[ $armSettingID ];
+					$this->fieldLookupList =
+						$this->getFieldLookupList(
+							$this->getProjectSetting( 'scheme-field-lookup-value' )[ $armSettingID ],
+							$this->getProjectSetting( 'scheme-field-lookup-desc' )[ $armSettingID ],
+							$this->getProjectSetting( 'scheme-field-lookup-filter' )[ $armSettingID ] );
+				}
+				$schemePrefix = $this->getProjectSetting( 'scheme-name-prefix' )[ $armSettingID ];
+				$schemeSuffix = $this->getProjectSetting( 'scheme-name-suffix' )[ $armSettingID ];
+				$schemeTriggerOn = $this->getProjectSetting( 'scheme-name-trigger' );
+				$triggerOnRCName = ( is_array( $schemeTriggerOn ) &&
+				                     isset( $schemeTriggerOn[ $armSettingID ] ) )
+				                   ? ( $schemeTriggerOn[ $armSettingID ] == 'R' ) : false;
+				$triggerOnMismatch = ( is_array( $schemeTriggerOn ) &&
+				                       isset( $schemeTriggerOn[ $armSettingID ] ) )
+				                     ? ( $schemeTriggerOn[ $armSettingID ] == 'M' ) : false;
+				$this->allowNew = $this->getProjectSetting( 'scheme-allow-new' );
+				$this->allowNew = ( is_array( $this->allowNew ) &&
+				                    isset( $this->allowNew[ $armSettingID ] ) )
+				                  ? $this->allowNew[ $armSettingID ] : '';
+				$schemeAllowNew = ( $this->allowNew != 'S' );
+				if ( ! $schemeAllowNew )
 				{
 					$this->canAddRecord = false;
-					$this->hasSettingsForArm = false;
+					$this->blockedBySettings = true;
 				}
 			}
 
@@ -1138,6 +1206,27 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	function escapeHTML( $text )
 	{
 		return htmlspecialchars( $text, ENT_QUOTES );
+	}
+
+
+
+	// Evaluates logic for arm access / creating records.
+	function evaluateLogic( $logic )
+	{
+		// Empty logic always evaluates as true.
+		if ( $logic == '' )
+		{
+			return true;
+		}
+		// If the logic is not syntactically valid, return false.
+		if ( ! \LogicTester::isValid( $logic) )
+		{
+			return false;
+		}
+		$logic = \Piping::pipeSpecialTags( $logic, $this->getProjectId(), null, null, null, null,
+		                                   true, null, null, false, false, false, true, false,
+		                                   false, true );
+		return \LogicTester::apply( $logic );
 	}
 
 
