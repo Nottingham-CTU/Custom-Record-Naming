@@ -234,6 +234,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$this->userGroup = null;
 		$this->groupCode = null;
 		$this->allowNew = '';
+		$this->promptDAG = false;
 
 		$pagePath = substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ) );
 
@@ -245,8 +246,18 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			   substr( $pagePath, 0, 37 ) == 'DataEntry/record_status_dashboard.php' ) )
 		{
 			// Determine the current DAG and arm.
-			$userRights = \REDCap::getUserRights( USERID );
-			$userGroup = $userRights[ USERID ][ 'group_id' ]; // group ID or NULL
+			$userRights = $this->getUser()->getRights();
+			$userGroup = $userRights['group_id']; // group ID or NULL
+			if ( $userGroup == null && isset( $_COOKIE['redcap_custom_record_name_selecteddag'] ) )
+			{
+				$listValidDAGs = array_keys( \REDCap::getGroupNames() );
+				if ( in_array( $_COOKIE['redcap_custom_record_name_selecteddag'], $listValidDAGs ) )
+				{
+					$userGroup = intval( $_COOKIE['redcap_custom_record_name_selecteddag'] );
+					$_SESSION['module_customrecordnaming_selecteddag'] = $userGroup;
+					setcookie( 'redcap_custom_record_name_selecteddag', '', 0, '', '', true );
+				}
+			}
 			$this->userGroup = $userGroup;
 
 			$armNum = 1;
@@ -427,12 +438,17 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 				// If record numbering is based on Data Access Groups (DAGs) or the naming scheme
 				// contains the DAG, then the user must be in a DAG in order to create a record.
+				// If the user is not assigned to any DAG, prompt them for which DAG to use.
 				// Get the scheme DAG format and check the current DAG matches.
 				if ( strpos( $numberingType, 'G' ) !== false || $armNeedsDAG )
 				{
-					if ( $userGroup === null )
+					if ( $userGroup == null )
 					{
-						$this->canAddRecord = false;
+						$this->promptDAG = true;
+						if ( isset( $_GET['auto'] ) )
+						{
+							$this->canAddRecord = false;
+						}
 					}
 					else
 					{
@@ -450,9 +466,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// If a new record is being submitted, check that the record name is still unused. If
 			// it is not, then generate a new one.
 			if ( substr( $pagePath, 0, 19 ) == 'DataEntry/index.php' &&
-				 isset( $_POST[ 'module-custom-record-naming-new-record' ] ) )
+				 isset( $_POST['module-custom-record-naming-new-record'] ) )
 			{
-				unset( $_POST[ 'module-custom-record-naming-new-record' ] );
+				unset( $_POST['module-custom-record-naming-new-record'],
+				       $_SESSION['module_customrecordnaming_selecteddag'] );
 				$submittedRecordName = $_POST[ \REDCap::getRecordIdField() ];
 				$newRecordName =
 						$this->generateRecordName( $armID, $armSettingID, $groupCode, null, true );
@@ -709,6 +726,15 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// 'add new record' button and replace it with a brief explanation.
 			if( ! $this->canAddRecord )
 			{
+				$cantAddMsg = '(New records cannot be added to this arm from this Data Access Group)';
+				if ( ! $this->hasSettingsForArm )
+				{
+					$cantAddMsg = '(Record naming needs to be set up in the Custom Record Naming module for this arm)';
+				}
+				elseif ( $this->blockedBySettings )
+				{
+					$cantAddMsg = '(New records are currently prohibited for this arm)';
+				}
 ?>
 <script type="text/javascript">
   $(function() {
@@ -721,29 +747,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
            vListButton[ i ].innerText.trim() == '<?php echo $addText4; ?>' )
       {
         vListButton[ i ].style.display = 'none'
-<?php
-				if ( ! $this->hasSettingsForArm )
-				{
-?>
-        $( '<i>(Record numbering has not been set up for the current arm)</i>'
-               ).insertBefore( vListButton[ i ] )
-<?php
-				}
-				else if ( $this->blockedBySettings )
-				{
-?>
-        $( '<i>(New records cannot be added for this arm)</i>'
-               ).insertBefore( vListButton[ i ] )
-<?php
-				}
-				else
-				{
-?>
-        $( '<i>(You must be in a valid Data Access Group to add records)</i>'
-               ).insertBefore( vListButton[ i ] )
-<?php
-				}
-?>
+        $( '<i><?php echo $this->escape( $cantAddMsg ); ?></i>' ).insertBefore( vListButton[ i ] )
         break
       }
     }
@@ -753,9 +757,19 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 			// If the record name contains a user supplied component, then ensure that the user is
 			// prompted for it when they click the 'add new record' button.
-			elseif ( $this->userSuppliedComponentPrompt !== null ||
+			elseif ( $this->promptDAG || $this->userSuppliedComponentPrompt !== null ||
 			         $this->fieldLookupPrompt !== null )
 			{
+				$promptDAG = $this->promptDAG;
+				if ( substr( $pagePath, 0, 37 ) == 'DataEntry/record_status_dashboard.php' )
+				{
+					$selectedDAG =
+						\UIState::getUIStateValue( PROJECT_ID, 'record_status_dashboard', 'dag' );
+					if ( preg_match( '/^[1-9][0-9]*$/', $selectedDAG ) )
+					{
+						$promptDAG = $selectedDAG;
+					}
+				}
 ?>
 <script type="text/javascript">
   $(function() {
@@ -773,7 +787,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				                              $this->userSuppliedComponentPrompt,
 				                              $this->userSuppliedComponentRegex,
 				                              $this->fieldLookupPrompt,
-				                              $this->fieldLookupList, false ); ?>
+				                              $this->fieldLookupList, false, $promptDAG ); ?>
 
         break
       }
@@ -801,14 +815,20 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
   $(function() {
 <?php
 
-			if ( $this->userGroup !== null )
+			if ( $this->userGroup !== null ||
+			     isset( $_SESSION['module_customrecordnaming_selecteddag'] ) )
 			{
+				$userGroup = $this->userGroup;
+				if ( $userGroup == null )
+				{
+					$userGroup = $_SESSION['module_customrecordnaming_selecteddag'];
+				}
 
 ?>
     var vDAGSelect = $('select[name=__GROUPID__]')
     if ( vDAGSelect.length == 1 && vDAGSelect[0].value == '' )
     {
-      vDAGSelect[0].value = '<?php echo $this->userGroup; ?>'
+      vDAGSelect[0].value = '<?php echo $userGroup; ?>'
     }
 <?php
 
@@ -1973,7 +1993,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	// Prompt the user for record name components.
 	protected function makeUserPromptJS( $jsParams, $jsFinal, $jsCancel, $userSuppliedPrompt,
 	                                     $userSuppliedRegex, $fieldValuePrompt, $listFields,
-	                                     $isSurvey )
+	                                     $isSurvey, $dag = false )
 	{
 		$fnFormatPromptText = function( $text )
 		{
@@ -1991,6 +2011,28 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			                              $fnParse, $text );
 		};
 		$output = "function ($jsParams) { var vDialog = $('<div></div>');";
+		if ( $dag !== false )
+		{
+			$output .= "vDialog.append('<p>Select DAG:</p>');" .
+			           "var vDAGList = $('<select><option></option>";
+			foreach ( \REDCap::getGroupNames() as $dagID => $dagName )
+			{
+				$output .= '<option';
+				if ( is_integer( $dag ) )
+				{
+					$output .= ' selected';
+				}
+				$output .= ' value="' . $this->escapeHTML( $dagID ) . '">' .
+				           $this->escapeHTML( $dagName ) . '</option>';
+			}
+			$output .= "');vDialog.append($('<p style=\"max-width:99%\"></p>').append(vDAGList));" .
+			           "var vDAGListErr = $('<p style=\"color:#c00\"></p>');" .
+			           "vDialog.append(vDAGListErr);";
+		}
+		if ( $dag !== false && ( $userSuppliedPrompt !== null || $fieldValuePrompt !== null ) )
+		{
+			$output .= "vDialog.append('<hr>');";
+		}
 		if ( $userSuppliedPrompt !== null )
 		{
 			$output .= "vDialog.append('<p>" .
@@ -2023,6 +2065,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		           addslashes( $isSurvey ? $GLOBALS['lang']['survey_200']
 		                                 : $GLOBALS['lang']['data_entry_46'] ) .
 		           '":function(){var vValid = true;';
+		if ( $dag !== false )
+		{
+			$output .= "vDAGListErr.text('');if (vDAGList.val() == ''){vValid = false;" .
+			           "vDAGListErr.text('Sorry, this field cannot be blank.')};";
+		}
 		if ( $userSuppliedPrompt !== null )
 		{
 			$output .= "vUserSuppliedErr.text('');if (vUserSupplied.val() == ''){vValid = false;" .
@@ -2037,6 +2084,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			           "vFieldValuesErr.text('Sorry, this field cannot be blank.')};";
 		}
 		$output .= 'if (vValid){';
+		if ( $dag !== false )
+		{
+			$output .= "document.cookie = 'redcap_custom_record_name_selecteddag=' + " .
+			           "encodeURIComponent( vDAGList.val() ) + ';secure';" .
+			           "vDAGList.prop('disabled',true);";
+		}
 		if ( $userSuppliedPrompt !== null )
 		{
 			$output .= "document.cookie = 'redcap_custom_record_name=' + " .
@@ -2200,6 +2253,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	private $userGroup;
 	private $groupCode;
 	private $allowNew;
+	private $promptDAG;
 
 }
 
