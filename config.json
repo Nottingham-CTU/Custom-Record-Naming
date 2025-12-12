@@ -11,8 +11,12 @@
 			"institution": "University of Nottingham"
 		}
 	],
-	"framework-version" : 15,
-	"compatibility" : { "redcap-version-min" : "14.5.0" },
+	"framework-version" : 16,
+	"compatibility" : {
+		"php-version-min" : "8.1.0",
+		"php-version-max" : "8.99.99",
+		"redcap-version-min" : "15.0.0"
+	},
 	"links" : {
 		"project" : [
 			{
