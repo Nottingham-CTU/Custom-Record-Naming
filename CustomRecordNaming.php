@@ -1278,10 +1278,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$listFullSettings = $this->getProjectSettings();
 		foreach ( $listSettingFields as $key )
 		{
-			$value = $listFullSettings[ $key ];
 			if ( ! in_array( $key, [ 'enabled', 'scheme-settings',
-			                         'project-last-record', 'project-record-counter' ] ) )
+			                         'project-last-record', 'project-record-counter' ] ) &&
+			     array_key_exists( $key, $listFullSettings ) && $listFullSettings[ $key ] !== null )
 			{
+				$value = $listFullSettings[ $key ];
 				if ( $key == 'scheme-arm' )
 				{
 					array_walk( $value,
