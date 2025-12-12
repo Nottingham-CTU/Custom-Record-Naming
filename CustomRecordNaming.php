@@ -601,12 +601,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		       ( substr( $pagePath, 0, 9 ) == 'index.php' &&
 		         $_GET['route'] == 'DataAccessGroupsController:index' ) ) )
 		{
-			$dagFormatErrorText = 'The DAG name you entered does not conform to the allowed' .
-			                      ' DAG name format.';
+			$dagFormatErrorText = $this->tt('dag_fmt_error1');
 			if ( $dagFormatNotice != '' )
 			{
-				$dagFormatErrorText .= '\n\nPlease use a DAG name which conforms to the format' .
-				                       ' described on the DAGs page.';
+				$dagFormatErrorText .= '\n\n' . $this->tt('dag_fmt_error2');
 			}
 
 ?>
@@ -625,7 +623,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
     var vDoneEnter = false
     add_group = function()
     {
-      if ( $( '#new_group' ).val() != 'Enter new group name' )
+      if ( $( '#new_group' ).val() != '<?php echo addslashes( $GLOBALS['lang']['rights_179'] ); ?>' )
       {
         if ( vDAGRegex.test( $( '#new_group' ).val() ) )
         {
@@ -726,14 +724,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// 'add new record' button and replace it with a brief explanation.
 			if( ! $this->canAddRecord )
 			{
-				$cantAddMsg = '(New records cannot be added to this arm from this Data Access Group)';
+				$cantAddMsg = $this->tt('addrecerr_dag');
 				if ( ! $this->hasSettingsForArm )
 				{
-					$cantAddMsg = '(Record naming needs to be set up in the Custom Record Naming module for this arm)';
+					$cantAddMsg = $this->tt('addrecerr_setup');
 				}
 				elseif ( $this->blockedBySettings )
 				{
-					$cantAddMsg = '(New records are currently prohibited for this arm)';
+					$cantAddMsg = $this->tt('addrecerr_prohibit');
 				}
 ?>
 <script type="text/javascript">
@@ -903,11 +901,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
           width:420
         })
       }
-      var vURLTable = $('<table><tr><th style="border:solid #000 1px;padding:3px">DAG</th>' +
-                        '<th style="border:solid #000 1px;padding:3px">Public Survey URL</th>' +
+      var vURLTable = $('<table><tr><th style="border:solid #000 1px;padding:3px">' +
+                        '<?php echo addslashes( $this->tt('pubsurv_dag') ); ?></th>' +
+                        '<th style="border:solid #000 1px;padding:3px">' +
+                        '<?php echo addslashes( $this->tt('pubsurv_url') ); ?></th>' +
                         '<th style="border:solid #000 1px;padding:3px"><img ' +
                         'src="<?php echo APP_PATH_WEBROOT; ?>Resources/images/qrcode.png" ' +
-                        'style="vertical-align:middle"> QR Code</th></tr></table>')
+                        'style="vertical-align:middle"> ' +
+                        '<?php echo addslashes( $this->tt('pubsurv_qr') ); ?></th></tr></table>')
 <?php
 				$dagURL = $this->dagQueryID( '' );
 ?>
@@ -940,8 +941,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 ?>
       vURLTable.insertAfter( vInsertAfter )
       vInsertAfter.css('display','none')
-      vURLTable.before('<p>Please note that these URLs will only work if the DAG is valid for ' +
-                       'the custom naming scheme invoked by the public survey.</p>')
+      vURLTable.before('<p><?php echo addslashes( $this->tt('pubsurv_link_note') ); ?></p>')
       $('.link-actions-container, .url-actions-container').css('display', 'none')
     }
   })
@@ -962,17 +962,19 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 <script type="text/javascript">
   $(function()
   {
-    var vDialog = $('<div><p>The record name/number <?php
-			echo $this->escapeHTML( $_SESSION['module_customrecordnaming_amended'][0] );
-?> already exists in the project.<br>This record has been created as <b><?php
-			echo $this->escapeHTML( $_SESSION['module_customrecordnaming_amended'][1] );
-?></b>.</p></div>')
+    var vDialog = $('<div><p><?php
+			echo $this->tt( 'addrec_name_exists1',
+			                $_SESSION['module_customrecordnaming_amended'][0] ),
+			     '<br>',
+			     $this->tt( 'addrec_name_exists2',
+			                $_SESSION['module_customrecordnaming_amended'][1] );
+?></p></div>')
     vDialog.dialog(
     {
       autoOpen:true,
       modal:true,
       resizable:false,
-      title:'Record name updated',
+      title:'<?php echo addslashes( $this->tt('addrec_name_exists') ); ?>',
       width:450
     })
   })
@@ -1318,15 +1320,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	// Get the list of record name types.
 	public function getListRecordNameTypes()
 	{
-		return [ 'R' => 'Record number',
-                 'G' => 'DAG',
-                 'U' => 'User supplied',
-                 'T' => 'Timestamp',
-                 'S' => 'Public survey logic',
-                 'F' => 'Field value lookup',
-                 'C' => 'Check digits',
-                 'Z' => 'Username',
-                 '1' => 'Constant value' ];
+		$listTypes = [];
+		foreach ( [ 'R', 'G', 'U', 'T', 'S', 'F', 'C', 'Z', '1' ] as $code )
+		{
+			$listTypes[ $code ] = $this->tt( 'nametype_' . $code );
+		}
+		return $listTypes;
 	}
 
 
@@ -1346,7 +1345,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( $settings['dag-format'] != '' &&
 		     preg_match( $this->makePcreString( $settings['dag-format'] ), '' ) === false )
 		{
-			$errMsg .= "\n- Invalid regular expression for restrict DAG name format";
+			$errMsg .= "\n- " . $this->tt('validate_setting_dag_format');
 		}
 
 		// Validate the settings for each custom naming scheme.
@@ -1357,11 +1356,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// Check the arm is specified and has not already had a scheme defined for it.
 			if ( $settings['scheme-arm'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) . ": Value required for target arm";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_arm_req', ($i + 1) );
 			}
 			elseif ( in_array( $settings['scheme-arm'][$i], $definedArms ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) . ": Scheme already defined for arm";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_arm_def', ($i + 1) );
 			}
 			$definedArms[] = $settings['scheme-arm'][$i];
 
@@ -1370,31 +1369,27 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( ! isset( $settings['scheme-name-type'][$i] ) ||
 			     $settings['scheme-name-type'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Value required for record name type";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_name_type', ($i + 1) );
 			}
 			elseif ( ! empty( array_diff( str_split( $settings['scheme-numbering'][$i], 1 ),
 			                              array_merge( ['','A'],
 			                               str_split( $settings['scheme-name-type'][$i], 1 ) ) ) ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) . ": Record numbering can only use" .
-				           " the selected record name types";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_numbering', ($i + 1) );
 			}
 
 			// Ensure that the constant value has been set if selected.
 			if ( strpos( $settings['scheme-name-type'][$i], '1' ) !== false &&
 			     $settings['scheme-const1'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Constant value cannot be blank if constant value used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_const1', ($i + 1) );
 			}
 
 			// Ensure that the starting number, if set, is a positive integer.
 			if ( $settings['scheme-number-start'][$i] != '' &&
 			     ! preg_match( '/^0|[1-9][0-9]*$/', $settings['scheme-number-start'][$i] ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": First record number must be a positive integer";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_number_start', ($i + 1) );
 			}
 
 			// Validate the DAG name format for the naming scheme. This is required if the record
@@ -1404,40 +1399,34 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'G' ) !== false &&
 			     $settings['scheme-dag-format'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Value required for DAG name format";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_dag_format_1', ($i + 1) );
 			}
 			elseif ( $settings['scheme-dag-format'][$i] != '' &&
 			         preg_match( $this->makePcreString( $settings['scheme-dag-format'][$i] ),
 			                     '' ) === false )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Invalid regular expression for DAG name format";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_dag_format_2', ($i + 1) );
 			}
 			elseif ( $settings['scheme-dag-format'][$i] == '' &&
 			         $settings['scheme-dag-section'][$i] != '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": DAG format subpattern specified but DAG name format not specified";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_dag_section_1', ($i + 1) );
 			}
 			elseif ( $settings['scheme-dag-format'][$i] != '' &&
 			         $settings['scheme-dag-section'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": DAG name format specified but DAG format subpattern not specified";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_dag_section_2', ($i + 1) );
 			}
 			elseif ( $settings['scheme-dag-section'][$i] != '' &&
 			         ! preg_match( '/^0|[1-9][0-9]*$/', $settings['scheme-dag-section'][$i] ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": DAG format subpattern must be an integer";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_dag_section_3', ($i + 1) );
 			}
 			elseif ( $settings['scheme-dag-section'][$i] >
 			         substr_count( str_replace( [ '\\\\', '\(' ], '',
 			                                    $settings['scheme-dag-format'][$i] ), '(' ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Specified DAG format subpattern greater than number of subpatterns";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_dag_section_4', ($i + 1) );
 			}
 
 			// Ensure that the prompt for the user supplied name is provided if the record name type
@@ -1445,8 +1434,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'U' ) !== false &&
 			     $settings['scheme-prompt-user-supplied'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": User supplied name prompt cannot be blank if user supplied name used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_usrsuppl', ($i + 1) );
 			}
 
 			// Validate the user supplied name format for the naming scheme.
@@ -1454,16 +1442,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'U' ) !== false &&
 			     $settings['scheme-user-supplied-format'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": User supplied name format cannot be blank if user supplied name used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_usrsuppl_fmt_1', ($i + 1) );
 			}
 			elseif ( $settings['scheme-user-supplied-format'][$i] != '' &&
 			         preg_match( $this->makePcreString(
 			                                       $settings['scheme-user-supplied-format'][$i] ),
 			                     '' ) === false )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Invalid regular expression for user supplied name format";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_usrsuppl_fmt_2', ($i + 1) );
 			}
 
 			// Ensure that the timestamp format and timezone are provided if the record name type
@@ -1471,14 +1457,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'T' ) !== false &&
 			     $settings['scheme-timestamp-format'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Timestamp format cannot be blank if timestamp used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_timestamp_fmt', ($i + 1) );
 			}
 			if ( strpos( $settings['scheme-name-type'][$i], 'T' ) !== false &&
 			     $settings['scheme-timestamp-tz'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Timezone cannot be blank if timestamp used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_timestamp_tz', ($i + 1) );
 			}
 
 			// Ensure that the prompt for the field lookup is provided if the record name type
@@ -1486,8 +1470,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'F' ) !== false &&
 			     $settings['scheme-prompt-field-lookup'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Field lookup prompt cannot be blank if field value lookup used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_field_lookup_1', ($i + 1) );
 			}
 
 			// Validate the lookup value field. This is required if the record name includes a
@@ -1495,14 +1478,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'F' ) !== false &&
 			     $settings['scheme-field-lookup-value'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Lookup value field cannot be blank if field value lookup used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_field_lookup_2', ($i + 1) );
 			}
 			elseif ( $settings['scheme-field-lookup-value'][$i] != '' &&
 			         ! in_array( $settings['scheme-field-lookup-value'][$i], $listFieldNames ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": The specified lookup value field does not exist";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_field_lookup_3', ($i + 1) );
 			}
 
 			// Validate the lookup description field. This is required if the record name includes a
@@ -1510,14 +1491,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'F' ) !== false &&
 			     $settings['scheme-field-lookup-desc'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Lookup description field cannot be blank if field value lookup used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_field_lookup_4', ($i + 1) );
 			}
 			elseif ( $settings['scheme-field-lookup-desc'][$i] != '' &&
 			         ! in_array( $settings['scheme-field-lookup-desc'][$i], $listFieldNames ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": The specified lookup description field does not exist";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_field_lookup_5', ($i + 1) );
 			}
 
 			// Ensure that the check digit algorithm is provided if the record name type includes
@@ -1525,15 +1504,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'C' ) !== false &&
 			     $settings['scheme-check-digit-algorithm'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Check digit algorithm cannot be blank if check digits used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_check_digit', ($i + 1) );
 			}
 
 		}
 
 		if ( $errMsg != '' )
 		{
-			return "Your record naming configuration contains errors:$errMsg";
+			return $this->tt('validate_setting') . $errMsg;
 		}
 
 		return null;
@@ -1803,7 +1781,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$hasCheckDigits = ( strpos( $nameType, 'C' ) !== false );
 			if ( $hasCheckDigits )
 			{
-				if ( $chkDigitAlg == 'mod97' )
+				if ( in_array( $chkDigitAlg, [ 'mod97', 'mod11' ] ) )
 				{
 					$namingRuns = [1,2];
 				}
@@ -1844,6 +1822,23 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 						// Reset record name to blank.
 						$recordName = '';
 					}
+					if ( $namingRun == 2 && $chkDigitAlg == 'mod11' )
+					{
+						// Consider numbers only.
+						$recordName = preg_replace( '/[^0-9]/', '', strtoupper($recordName) );
+						// Calculate mod-11 of converted record name.
+						$checkDigits = 0;
+						while ( strlen( $recordName ) > 0 )
+						{
+							$checkDigits += intval( substr( $recordName, 0, 1 ) ) *
+							                ( strlen( $recordName ) + 1 );
+							$recordName = substr( $recordName, 1 );
+						}
+						$checkDigits = ( 11 - ( $checkDigits % 11 ) ) % 11;
+						$checkDigits = strval( $checkDigits == 10 ? 'X' : $checkDigits );
+						// Reset record name to blank.
+						$recordName = '';
+					}
 				}
 				// Build the record name from the components selected, separated by the separator
 				// value (if not constant value).
@@ -1881,7 +1876,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 					}
 					elseif ( substr( $nameType, $i, 1 ) == 'C' ) // check digits
 					{
-						if ( $namingRun == 2 && $chkDigitAlg == 'mod97' )
+						if ( $namingRun == 2 && in_array( $chkDigitAlg, [ 'mod97', 'mod11' ] ) )
 						{
 							$recordName .= $checkDigits;
 						}
@@ -2013,7 +2008,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$output = "function ($jsParams) { var vDialog = $('<div></div>');";
 		if ( $dag !== false )
 		{
-			$output .= "vDialog.append('<p>Select DAG:</p>');" .
+			$output .= "vDialog.append('<p>" . addslashes( $this->tt('prompt_dag') ) . "</p>');" .
 			           "var vDAGList = $('<select><option></option>";
 			foreach ( \REDCap::getGroupNames() as $dagID => $dagName )
 			{
@@ -2068,20 +2063,22 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( $dag !== false )
 		{
 			$output .= "vDAGListErr.text('');if (vDAGList.val() == ''){vValid = false;" .
-			           "vDAGListErr.text('Sorry, this field cannot be blank.')};";
+			           "vDAGListErr.text('" . addslashes( $this->tt('prompt_err_blank') ) . "')};";
 		}
 		if ( $userSuppliedPrompt !== null )
 		{
 			$output .= "vUserSuppliedErr.text('');if (vUserSupplied.val() == ''){vValid = false;" .
-			           "vUserSuppliedErr.text('Sorry, this field cannot be blank.')" .
-			           "}else if(!new RegExp(" . json_encode( $userSuppliedRegex ) .
+			           "vUserSuppliedErr.text('" . addslashes( $this->tt('prompt_err_blank') ) .
+			           "')}else if(!new RegExp(" . json_encode( $userSuppliedRegex ) .
 			           ").test( vUserSupplied.val() ) ){vValid = false;" .
-			           "vUserSuppliedErr.text('Sorry, the value you entered was not valid.')};";
+			           "vUserSuppliedErr.text('" . addslashes( $this->tt('prompt_err_invalid') ) .
+			           "')};";
 		}
 		if ( $fieldValuePrompt !== null )
 		{
 			$output .= "vFieldValuesErr.text('');if (vFieldValues.val() == ''){vValid = false;" .
-			           "vFieldValuesErr.text('Sorry, this field cannot be blank.')};";
+			           "vFieldValuesErr.text('" . addslashes( $this->tt('prompt_err_blank') ) .
+			           "')};";
 		}
 		$output .= 'if (vValid){';
 		if ( $dag !== false )

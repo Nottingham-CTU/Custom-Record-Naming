@@ -214,7 +214,7 @@ elseif ( isset( $_POST['import'] ) )
 require_once APP_PATH_DOCROOT . 'ProjectGeneral/header.php';
 
 ?>
-<div class="projhdr">Import and Export Custom Record Naming Settings</div>
+<div class="projhdr"><?php echo $module->tt('impexp'); ?></div>
 <p>&nbsp;</p>
 <?php
 // If confirming the changes upon import, show the comparison table.
@@ -222,17 +222,13 @@ if ( $importConfirm )
 {
 
 ?>
-<p>
- Please check the changes to the settings and click the button at the bottom to complete the import.
-</p>
-<p>
- <b>Note:</b> Any imported arms which do not exist in the project will be ignored.
-</p>
+<p><?php echo $module->tt('impexp_confirm'); ?></p>
+<p><?php echo $module->tt('impexp_confirm_note'); ?></p>
 <table id="importCompareTable">
  <tr>
-  <th>Setting</th>
-  <th>Old value</th>
-  <th>New value</th>
+  <th><?php echo $module->tt('impexp_table_setting'); ?></th>
+  <th><?php echo $module->tt('impexp_table_oldval'); ?></th>
+  <th><?php echo $module->tt('impexp_table_newval'); ?></th>
  </tr>
 <?php
 	foreach ( $settingCompare as $armName => $armData )
@@ -245,7 +241,8 @@ if ( $importConfirm )
   <th colspan="3"><?php
 			echo htmlspecialchars( $armName ),
 			     ( $armExists
-			       ? '' : ' <span style="color:#c00">(arm does not exist in project)</span>' );
+			       ? '' : ( ' <span style="color:#c00">' . $module->tt('impexp_table_noarm') .
+			                '</span>' ) );
 ?></th>
  </tr>
 <?php
@@ -276,7 +273,7 @@ if ( $importConfirm )
 </table>
 <form method="post">
  <p>
-  <input type="submit" value="Import">
+  <input type="submit" value="<?php echo $module->tt('impexp_import'); ?>">
   <input type="hidden" name="import" value="<?php
 	echo htmlspecialchars( json_encode( $importData ) ); ?>">
  </p>
@@ -297,7 +294,7 @@ else
 	{
 
 ?>
-<p><b>Settings imported successfully.</b></p>
+<p><b><?php echo $module->tt('impexp_import_success'); ?></b></p>
 <p>&nbsp;</p>
 <?php
 
@@ -308,7 +305,7 @@ else
 		// Only show export link if settings exist.
 ?>
 <p><a href="./?<?php echo htmlspecialchars( $_SERVER['QUERY_STRING'] );
-?>&amp;export=1">Export Settings</a></p>
+?>&amp;export=1"><?php echo $module->tt('impexp_export_settings'); ?></a></p>
 <p>&nbsp;</p>
 <?php
 
@@ -316,7 +313,10 @@ else
 
 ?>
 <form method="post" enctype="multipart/form-data">
- <p>Import Settings:&nbsp; <input type="file" name="import"><input type="submit" value="Import"></p>
+ <p>
+  <?php echo $module->tt('impexp_import_settings'); ?>&nbsp; <input type="file" name="import">
+  <input type="submit" value="<?php echo $module->tt('impexp_import'); ?>">
+ </p>
 </form>
 <?php
 

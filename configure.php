@@ -227,7 +227,7 @@ function makeSettingRow( $field, $name, $type, $choices, $value )
 			}
 		}
 		$row .= '</ul><input type="hidden" name="' . $field . '" value="' . $value . '">' .
-		        '(drag items to change order)';
+		        $module->tt('multi_select_drag');
 	}
 	$row .= '</td></tr>';
 	return $row;
@@ -254,11 +254,11 @@ require_once APP_PATH_DOCROOT . 'ProjectGeneral/header.php';
 
 
 ?>
-<div class="projhdr"><i class="fas fa-list-ul"></i> Custom Record Naming</div>
+<div class="projhdr"><i class="fas fa-list-ul"></i> <?php echo $module->tt('module_name'); ?></div>
 <form method="post" id="customrecordnaming_form">
  <div id="modsettings" style="width:97%">
   <ul>
-   <li><a href="#modsettings_general">General</a></li>
+   <li><a href="#modsettings_general"><?php echo $module->tt('general'); ?></a></li>
 <?php
 
 foreach ( $listArms as $armID => $armName )
@@ -282,6 +282,10 @@ foreach ( $listArms as $armID => $armName )
 // Output general settings.
 foreach ( $listProjectSettings as $fieldName => $setting )
 {
+	if ( $fieldName == 'reserved-hide-from-non-admins-in-project-list' )
+	{
+		continue;
+	}
 	if ( $fieldName == 'dag-format' )
 	{
 		// Provide a dropdown for DAG format restriction to auto-fill regex field.
@@ -302,6 +306,10 @@ foreach ( $listProjectSettings as $fieldName => $setting )
 		     '(space separator)</option><option value="^[A-Z]{3}[ ]">3 character prefix ' .
 		     '(uppercase A-Z only, space separator)</option><option value=":">Custom (regular ' .
 		     'expression)</option></select></td></tr>';
+	}
+	if ( $fieldName == 'reserved-language-project' )
+	{
+		$setting['name'] = preg_replace( '|<b>.*?</b>.*?<br>|', '', $setting['name'] );
 	}
 	echo makeSettingRow( $fieldName, $setting['name'], $setting['type'],
 	                     $setting['choices'], $setting['value'] );
@@ -335,8 +343,8 @@ foreach ( $listArms as $armID => $armName )
 ?>
    <div class="yellow" style="max-width:100%">
     <img src="<?php echo APP_PATH_WEBROOT; ?>/Resources/images/exclamation_orange.png">
-    This arm already contains <?php echo $listNonEmptyArms[ $armID ]; ?> record<?php
-		echo $listNonEmptyArms[ $armID ] == 1 ? '' : 's'; ?>.
+    <?php echo $module->tt( 'arm_contains_record' . $listNonEmptyArms[ $armID ] == 1 ? '' : 's',
+                            $listNonEmptyArms[ $armID ] ), "\n"; ?>
    </div>
 <?php
 
@@ -373,20 +381,18 @@ foreach ( $listArms as $armID => $armName )
 		elseif ( $fieldName == 'scheme-name-prefix' )
 		{
 			// Add a note before the prefix, separator and suffix fields.
-			echo '<tr><td></td><td style="font-size:x-small">If using per-arm numbering, it is ',
-			     'highly recommended that you make use of at least one of prefix, separator and ',
-			     'suffix, with different values for each arm, in order to avoid a naming clash.',
-			     '</td></tr>';
+			echo '<tr><td></td><td style="font-size:x-small">',
+			     $module->tt('setting_scheme_name_type_note'), '</td></tr>';
 		}
 		elseif ( $fieldName == 'scheme-dag-format' )
 		{
 			// Provide a dropdown for DAG format to auto-fill regex field.
-			echo '<tr data-type="G"><td style="padding:10px 0px 10px 0px">Accept DAG name format' .
-			     '</td><td style="padding:10px 0px 10px 0px"><select class="choose-dag-format">' .
-			     '<option value=""></option><option value="^([^ ]+)[ ]">Use all up to first space' .
-			     '</option><option value="^([0-9]+)[^0-9]">Use numeric prefix (all up to first ' .
-			     'non-number)</option><option value=":">Custom (regular expression)</option>' .
-			     '</select></td></tr>';
+			echo '<tr data-type="G"><td style="padding:10px 0px 10px 0px">Accept DAG name format',
+			     '</td><td style="padding:10px 0px 10px 0px"><select class="choose-dag-format">',
+			     '<option value=""></option><option value="^([^ ]+)[ ]">',
+			     $module->tt('dag_format_space'), '</option><option value="^([0-9]+)[^0-9]">',
+			     $module->tt('dag_format_numprefix'), '</option><option value=":">',
+			     $module->tt('dag_format_custom'), '</option></select></td></tr>';
 		}
 		elseif ( $fieldName == 'scheme-timestamp-tz' )
 		{
@@ -404,17 +410,14 @@ foreach ( $listArms as $armID => $armName )
 		if ( $fieldName == 'scheme-name-trigger' )
 		{
 			// Add a note after the trigger field.
-			echo '<tr><td></td><td style="font-size:x-small">Note: Triggering custom record naming',
-			     ' when a record is being named in REDCap format should be avoided if the custom ',
-			     'format can match the REDCap format (one number or two numbers separated by a ',
-			     'dash) as desired record names could be blocked.</td></tr>';
+			echo '<tr><td></td><td style="font-size:x-small">',
+			     $module->tt('setting_scheme_name_trigger_note'), '</td></tr>';
 		}
 		elseif ( strpos( $fieldName, 'scheme-const' ) === 0 )
 		{
 			// Add a note after the constant field.
 			echo '<tr data-type="', substr( $fieldName, 12 ), '"><td></td><td style="',
-			     'font-size:x-small">Note: A separator will not be included around a constant ',
-			     'value.</td></tr>';
+			     'font-size:x-small">', $module->tt('setting_scheme_const_note'), '</td></tr>';
 		}
 	}
 	if ( $firstArm )
@@ -423,8 +426,8 @@ foreach ( $listArms as $armID => $armName )
 		     '10px 0px 10px 0px"><input type="checkbox" name="apply_all_arms" value="1">';
 		if ( ! empty( $listNonEmptyArms ) )
 		{
-			echo ' &nbsp;&nbsp;<span class="yellow"><img src="', APP_PATH_WEBROOT, '/Resources',
-			     '/images/exclamation_orange.png"> Some arms already contain records.</span>';
+			echo ' &nbsp;&nbsp;<span class="yellow"><img src="', APP_PATH_WEBROOT, '/Resources/',
+			     'images/exclamation_orange.png"> ', $module->tt('arms_contain_records'), '</span>';
 		}
 		echo '</td></tr>';
 		$firstArm = false;
@@ -436,7 +439,9 @@ foreach ( $listArms as $armID => $armName )
 }
 ?>
  </div>
- <p><input type="submit" value="Submit"></p>
+ <p style="margin:18px 0">
+  <input class="btn btn-defaultrc fs16" type="submit" value="<?php echo $module->tt('submit'); ?>">
+ </p>
 </form>
 <?php
 if ( $module->getUser()->isSuperUser() )
@@ -444,13 +449,15 @@ if ( $module->getUser()->isSuperUser() )
 ?>
 <p>&nbsp;</p>
 <hr style="max-width:300px;margin-left:0px">
-<p><b>Administrative Options</b></p>
+<p><b><?php echo $module->tt('admin_opt'); ?></b></p>
 <ul>
  <li>
-  <a href="<?php echo $module->getUrl( 'counter_overview.php' ) ?>">Open counter overview</a>
+  <?php echo '<a href="', $module->getUrl( 'counter_overview.php' ), '">',
+             $module->tt('admin_opt_counter'), "</a>\n"; ?>
  </li>
  <li>
-  <a href="<?php echo $module->getUrl( 'import_export.php' ) ?>">Import/export settings</a>
+  <?php echo '<a href="', $module->getUrl( 'import_export.php' ), '">',
+             $module->tt('admin_opt_imp_exp'), "</a>\n"; ?>
  </li>
 </ul>
 <?php
@@ -639,8 +646,12 @@ $(function()
                   vForm.submit()
                   return
                 }
+                vResponse = vResponse.split('\n')
+                var vTitle = vResponse[0]
+                vResponse = vResponse.slice(1).join('\n')
                 vForm.find('input[type="submit"]').prop('disabled', false)
-                $('<div><pre>' + vResponse + '</pre></div>').dialog({width:"65%",modal:true})
+                simpleDialog($('<pre style="background:unset;border:unset"></pre>').text(vResponse),
+                             vTitle, null, window.innerWidth*0.65)
               },
               'json' )
     }
@@ -651,8 +662,7 @@ if ( $module->getProjectStatus() != 'DEV' ) // Project placed into production st
 ?>
   if ( document.referrer.indexOf('custom_record_naming') == -1 )
   {
-    $('<div>This project is in production. It is recommended that you do not change naming ' +
-      'schemes for arms which already contain records.</div>').dialog(
+    $("<div><?php echo $module->tt('prod_warning'); ?></div>").dialog(
     {
       buttons:
       {
