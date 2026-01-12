@@ -267,7 +267,7 @@ foreach ( $listArms as $armID => $armName )
 ?>
    <li>
     <a href="#modsettings_arm<?php
-	echo intval( $armID ); ?>"><?php echo $module->escapeHTML( $armName ); ?></a>
+	echo intval( $armID ); ?>"><?php echo $module->escape( $armName ); ?></a>
    </li>
 <?php
 

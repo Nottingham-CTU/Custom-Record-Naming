@@ -841,7 +841,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 
 ?>
-    $('select[name="<?php echo $this->escapeHTML( $_GET['page'] );
+    $('select[name="<?php echo $this->escape( $_GET['page'] );
 ?>_complete"] option:not([value="2"])').remove()
 <?php
 
@@ -914,10 +914,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 ?>
       var vURLTR = $('<tr><td style="border:solid #000 1px;padding:3px"><i>none</i></td>' +
                      '<td style="border:solid #000 1px;padding:3px">' + vBaseURL + '&amp;_dag=' +
-                     '<?php echo $this->escapeHTML( $dagURL ); ?></td>' +
+                     '<?php echo $this->escape( $dagURL ); ?></td>' +
                      '<td style="border:solid #000 1px;padding:3px;text-align:center">' +
                      '<a href="#" data-qr="' + vURLCode + '%26_dag%3D' +
-                     '<?php echo $this->escapeHTML( $dagURL ); ?>">View</a></td></tr>')
+                     '<?php echo $this->escape( $dagURL ); ?>">View</a></td></tr>')
       vURLTR.find('td').eq(1).on('click',function(){vFuncSelect(this)})
       vURLTR.find('a[data-qr]').eq(0).on('click',function(e){vFuncQRClick(this);e.preventDefault()})
       vURLTable.append(vURLTR)
@@ -927,12 +927,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 					$dagURL = $this->dagQueryID( $dagID );
 ?>
       var vURLTR = $('<tr><td style="border:solid #000 1px;padding:3px">' +
-                     '<?php echo $this->escapeHTML( $dagName ); ?></td>' +
+                     '<?php echo $this->escape( $dagName ); ?></td>' +
                      '<td style="border:solid #000 1px;padding:3px">' + vBaseURL + '&amp;_dag=' +
-                     '<?php echo $this->escapeHTML( $dagURL ); ?></td>' +
+                     '<?php echo $this->escape( $dagURL ); ?></td>' +
                      '<td style="border:solid #000 1px;padding:3px;text-align:center">' +
                      '<a href="#" data-qr="' + vURLCode + '%26_dag%3D' +
-                     '<?php echo $this->escapeHTML( $dagURL ); ?>">View</a></td></tr>')
+                     '<?php echo $this->escape( $dagURL ); ?>">View</a></td></tr>')
       vURLTR.find('td').eq(1).on('click',function(){vFuncSelect(this)})
       vURLTR.find('a[data-qr]').eq(0).on('click',function(e){vFuncQRClick(this);e.preventDefault()})
       vURLTable.append(vURLTR)
@@ -1220,14 +1220,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		{
 			echo isset( $chars[ $part ] ) ? chr( $chars[ $part ] ) : $part;
 		}
-	}
-
-
-
-	// Escapes text for inclusion in HTML.
-	function escapeHTML( $text )
-	{
-		return htmlspecialchars( $text, ENT_QUOTES );
 	}
 
 
@@ -1993,7 +1985,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	{
 		$fnFormatPromptText = function( $text )
 		{
-			$text = $this->escapeHTML( $text );
+			$text = $this->escape( $text );
 			$text = nl2br( $text, false );
 			$text = str_replace( ["\r", "\n"], '', $text );
 			$fnParse = function( $m )
@@ -2018,8 +2010,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				{
 					$output .= ' selected';
 				}
-				$output .= ' value="' . $this->escapeHTML( $dagID ) . '">' .
-				           $this->escapeHTML( $dagName ) . '</option>';
+				$output .= ' value="' . $this->escape( $dagID ) . '">' .
+				           $this->escape( $dagName ) . '</option>';
 			}
 			$output .= "');vDialog.append($('<p style=\"max-width:99%\"></p>').append(vDAGList));" .
 			           "var vDAGListErr = $('<p style=\"color:#c00\"></p>');" .
@@ -2049,8 +2041,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			           "var vFieldValues = $('<select><option></option>";
 			foreach ( $listFields as $fieldValue => $fieldDesc )
 			{
-				$output .= '<option value="' . $this->escapeHTML( $fieldValue ) .
-				           '">' . $this->escapeHTML( $fieldDesc ) . '</option>';
+				$output .= '<option value="' . $this->escape( $fieldValue ) .
+				           '">' . $this->escape( $fieldDesc ) . '</option>';
 			}
 			$output .= "</select>');" .
 			           "vDialog.append($('<p style=\"max-width:99%\"></p>').append(vFieldValues))" .
