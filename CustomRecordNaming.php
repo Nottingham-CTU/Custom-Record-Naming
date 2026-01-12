@@ -1209,9 +1209,27 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 
+	// Function which can be called by other modules to ask that a record name be created.
+	public function createRecord( $eventID, $dagID )
+	{
+		$listSettingArmIDs = $this->getProjectSetting( 'scheme-arm' );
+		$armID = $this->getArmIdFromEventId( $eventID );
+		$dagID = ( $dagID === null ) ? '' : $dagID;
+		if ( is_array( $listSettingArmIDs ) && in_array( $armID, $listSettingArmIDs ) )
+		{
+			$armSettingID = array_search( $armID, $listSettingArmIDs );
+			$groupCode = $this->getGroupCode( $dagID, $armSettingID );
+			$groupCode = ( $groupCode === false ) ? '' : $groupCode;
+			return $this->generateRecordName( $armID, $armSettingID, $groupCode, null, true );
+		}
+		return null;
+	}
+
+
+
 	// Echo plain text to output (without Psalm taints).
 	// Use only for e.g. JSON or CSV output.
-	function echoText( $text )
+	public function echoText( $text )
 	{
 		$text = htmlspecialchars( $text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_XHTML );
 		$chars = [ '&amp;' => 38, '&quot;' => 34, '&apos;' => 39, '&lt;' => 60, '&gt;' => 62 ];
@@ -1220,27 +1238,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		{
 			echo isset( $chars[ $part ] ) ? chr( $chars[ $part ] ) : $part;
 		}
-	}
-
-
-
-	// Evaluates logic for arm access / creating records.
-	function evaluateLogic( $logic )
-	{
-		// Empty logic always evaluates as true.
-		if ( $logic == '' )
-		{
-			return true;
-		}
-		// If the logic is not syntactically valid, return false.
-		if ( ! \LogicTester::isValid( $logic) )
-		{
-			return false;
-		}
-		$logic = \Piping::pipeSpecialTags( $logic, $this->getProjectId(), null, null, null, null,
-		                                   true, null, null, false, false, false, true, false,
-		                                   false, true );
-		return \LogicTester::apply( $logic );
 	}
 
 
@@ -1583,6 +1580,15 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 
+	// Get the number of existing records.
+	// Optionally with the specified record name (1 = record exists, 0 = record doesn't exist).
+	protected function countRecords( $recordName = null )
+	{
+		return count( \REDCap::getData( 'array', $recordName, \REDCap::getRecordIdField() ) );
+	}
+
+
+
 	// Get a DAG value for the survey query string or check that a DAG query value is valid.
 	protected function dagQueryID( $dag, $check = false )
 	{
@@ -1628,11 +1634,23 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 
-	// Get the number of existing records.
-	// Optionally with the specified record name (1 = record exists, 0 = record doesn't exist).
-	protected function countRecords( $recordName = null )
+	// Evaluates logic for arm access / creating records.
+	protected function evaluateLogic( $logic )
 	{
-		return count( \REDCap::getData( 'array', $recordName, \REDCap::getRecordIdField() ) );
+		// Empty logic always evaluates as true.
+		if ( $logic == '' )
+		{
+			return true;
+		}
+		// If the logic is not syntactically valid, return false.
+		if ( ! \LogicTester::isValid( $logic ) )
+		{
+			return false;
+		}
+		$logic = \Piping::pipeSpecialTags( $logic, $this->getProjectId(), null, null, null, null,
+		                                   true, null, null, false, false, false, true, false,
+		                                   false, true );
+		return \LogicTester::apply( $logic );
 	}
 
 
