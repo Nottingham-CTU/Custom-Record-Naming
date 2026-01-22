@@ -126,6 +126,7 @@ if ( ! empty( $_POST ) )
 // Function to make a setting field for the configuration page.
 function makeSettingRow( $field, $name, $type, $choices, $value )
 {
+	global $module;
 	$row = '<tr';
 	if ( strpos( $field, 'scheme-number' ) !== false )
 	{
@@ -343,7 +344,7 @@ foreach ( $listArms as $armID => $armName )
 ?>
    <div class="yellow" style="max-width:100%">
     <img src="<?php echo APP_PATH_WEBROOT; ?>/Resources/images/exclamation_orange.png">
-    <?php echo $module->tt( 'arm_contains_record' . $listNonEmptyArms[ $armID ] == 1 ? '' : 's',
+    <?php echo $module->tt( 'arm_contains_record' . ( $listNonEmptyArms[ $armID ] == 1 ? '' : 's' ),
                             $listNonEmptyArms[ $armID ] ), "\n"; ?>
    </div>
 <?php
@@ -440,7 +441,9 @@ foreach ( $listArms as $armID => $armName )
 ?>
  </div>
  <p style="margin:18px 0">
-  <input class="btn btn-defaultrc fs16" type="submit" value="<?php echo $module->tt('submit'); ?>">
+  <button type="submit" class="btn btn-sm btn-primaryrc">
+   <i class="fas fa-save fs14"></i> &nbsp;<?php echo $module->tt('save'), "\n"; ?>
+  </button>
  </p>
 </form>
 <?php
