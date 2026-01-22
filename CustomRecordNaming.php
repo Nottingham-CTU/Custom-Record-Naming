@@ -326,12 +326,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$accessArmLogic = ( is_array( $listAccessArmLogic ) &&
 				                    isset( $listAccessArmLogic[ $armSettingID ] ) )
 				                  ? $listAccessArmLogic[ $armSettingID ] : '';
-				$accessArmLogic = $this->evaluateLogic( $accessArmLogic );
+				$accessArmLogic = $this->evaluateLogic( $accessArmLogic, $armID );
 				$createRecordLogic = $this->getProjectSetting('scheme-allow-new-logic');
 				$createRecordLogic = ( is_array( $createRecordLogic ) &&
 				                       isset( $createRecordLogic[ $armSettingID ] ) )
 				                     ? $createRecordLogic[ $armSettingID ] : '';
-				$createRecordLogic = $this->evaluateLogic( $createRecordLogic );
+				$createRecordLogic = $this->evaluateLogic( $createRecordLogic, $armID );
 				if ( ! $accessArmLogic || ! $createRecordLogic )
 				{
 					$this->canAddRecord = false;
@@ -615,10 +615,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// Prevent creating/renaming DAGs where the DAG name does not conform to the format.
 			if ( $dagFormat != '' )
 			{
-				$dagFormatJS = addslashes( $dagFormat );
 
 ?>
-    var vDAGRegex = new RegExp( '<?php echo $dagFormatJS; ?>' )
+    var vDAGRegex = new RegExp( <?php echo json_encode( $dagFormat ); ?> )
     var vFuncAddGroup = add_group
     var vDoneEnter = false
     add_group = function()
@@ -691,10 +690,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$dagFormatNotice = str_replace( [ "\r\n", "\n" ], '<br>', $dagFormatNotice );
 				$dagFormatNotice = '<img src="' . APP_PATH_WEBROOT .
 					               '/Resources/images/exclamation_orange.png"> ' . $dagFormatNotice;
-				$dagFormatNotice = addslashes( $dagFormatNotice );
+				$dagFormatNotice = json_encode( $dagFormatNotice );
 
 ?>
-    $( '<div class="yellow" style="max-width:900px"><?php echo $dagFormatNotice; ?></div>'
+    $( '<div class="yellow" style="max-width:900px">' + <?php echo $dagFormatNotice; ?> + '</div>'
                                                                     ).insertBefore( '#group_table' )
 <?php
 
@@ -1635,7 +1634,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 	// Evaluates logic for arm access / creating records.
-	protected function evaluateLogic( $logic )
+	protected function evaluateLogic( $logic, $armID )
 	{
 		// Empty logic always evaluates as true.
 		if ( $logic == '' )
@@ -1643,13 +1642,44 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			return true;
 		}
 		// If the logic is not syntactically valid, return false.
-		if ( ! \LogicTester::isValid( $logic ) )
+		if ( ! \LogicTester::isValid( preg_replace( '/\\[count-(project|arm)\\]/', '0', $logic ) ) )
 		{
 			return false;
 		}
-		$logic = \Piping::pipeSpecialTags( $logic, $this->getProjectId(), null, null, null, null,
-		                                   true, null, null, false, false, false, true, false,
-		                                   false, true );
+		// Replace any smart variables in the logic, including module specific smart variables.
+		$dataTable = \REDCap::getDataTable( $this->getProjectId() );
+		$counts = $this->query( 'WITH proj AS (SELECT DISTINCT record FROM ' . $dataTable . ' d ' .
+		                        'WHERE d.project_id = ?), arm AS (SELECT DISTINCT record FROM ' .
+		                        $dataTable . ' d JOIN redcap_events_metadata em ON d.event_id = ' .
+		                        'em.event_id WHERE d.project_id = ? AND arm_id = ?) ' .
+		                        'SELECT (SELECT count(*) FROM proj) proj, ' .
+		                        '(SELECT count(*) FROM arm) arm',
+		                        [ $this->getProjectId(), $this->getProjectId(), $armID ] )
+		                        ->fetch_assoc();
+		$listStr = preg_split('/([\'"])/', $logic, -1, PREG_SPLIT_DELIM_CAPTURE );
+		$quote = '';
+		$logic = '';
+		foreach ( $listStr as $strPart )
+		{
+			if ( $quote == '' && ( $strPart == "'" || $strPart == '"' ) )
+			{
+				$quote = $strPart;
+			}
+			elseif ( $quote != '' && $quote == $strPart )
+			{
+				$quote = '';
+			}
+			elseif ( $quote == '' )
+			{
+				$strPart = str_replace( '[count-project]', $counts['proj'], $strPart );
+				$strPart = str_replace( '[count-arm]', $counts['arm'], $strPart );
+				$strPart = \Piping::pipeSpecialTags( $strPart, $this->getProjectId(), null, null,
+				                                     null, null, true, null, null, false, false,
+				                                     false, true, false, false, true );
+			}
+			$logic .= $strPart;
+		}
+		// Evaluate the logic.
 		return \LogicTester::apply( $logic );
 	}
 
