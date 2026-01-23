@@ -601,10 +601,22 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		       ( substr( $pagePath, 0, 9 ) == 'index.php' &&
 		         $_GET['route'] == 'DataAccessGroupsController:index' ) ) )
 		{
-			$dagFormatErrorText = $this->tt('dag_fmt_error1');
+			$moduleName = $this->tt('module_name');
+			$dagFormatErrorText = '<p>' . $this->tt('dag_fmt_error') . '</p>';
 			if ( $dagFormatNotice != '' )
 			{
-				$dagFormatErrorText .= '\n\n' . $this->tt('dag_fmt_error2');
+				$dagFormatNotice =
+					preg_replace( '/&lt;b&gt;(.*?)&lt;\/b&gt;/', '<b style="font-size:14px">$1</b>',
+					              preg_replace( '/&lt;a href="([^"]*)"( target="_blank")?' .
+					                            '&gt;(.*?)&lt;\/a&gt;/',
+					                            '<a href="$1"$2>$3</a>',
+					                            htmlspecialchars( $dagFormatNotice,
+					                                              ENT_NOQUOTES ) ) );
+				$dagFormatNotice = str_replace( [ "\r\n", "\n" ], '<br>', $dagFormatNotice );
+				$dagFormatNotice = '<img src="' . APP_PATH_WEBROOT .
+				                   '/Resources/images/exclamation_orange.png"> ' . $dagFormatNotice;
+				$dagFormatErrorText .= '<div class="yellow">' . $dagFormatNotice . '</div>';
+				$dagFormatErrorText = json_encode( $dagFormatErrorText );
 			}
 
 ?>
@@ -630,7 +642,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
         }
         else
         {
-          alert( '<?php echo $dagFormatErrorText; ?>' )
+          simpleDialog( <?php echo $dagFormatErrorText, ', ', json_encode( $moduleName ); ?>,
+                        null, null, function(){ $('#new_group').trigger('focus') } )
         }
       }
     }
@@ -643,8 +656,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
         vDoneEnter = true
         if ( field.value != '' && ! vDAGRegex.test( field.value ) )
         {
-          alert( '<?php echo $dagFormatErrorText; ?>' )
-          field.focus()
+          var vFuncBlurEv = field.onblur
+          field.onblur = null
+          var vField = field
+          simpleDialog( <?php echo $dagFormatErrorText, ', ', json_encode( $moduleName ); ?>,
+                        null, null, function(){ vField.focus(); vField.onblur = vFuncBlurEv } )
           field = document.createElement( 'input' )
         }
       }
@@ -663,11 +679,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
         {
           if ( ! vDoneEnter )
           {
-            alert( '<?php echo $dagFormatErrorText; ?>' )
+            var vFocusField = field
+            simpleDialog( <?php echo $dagFormatErrorText, ', ', json_encode( $moduleName ); ?>,
+                          null, null, function() { vFocusField.focus() } )
           }
           vDoneEnter = true
-          var vFocusField = field
-          setTimeout( function() { vFocusField.focus() }, 300 )
           field = document.createElement( 'input' )
         }
         return vFuncFieldBlur( field, idfld )
@@ -680,16 +696,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// Add a notice to the DAGs page. This can be used to explain how to format DAG names.
 			if ( $dagFormatNotice != '' )
 			{
-				$dagFormatNotice =
-					preg_replace( '/&lt;b&gt;(.*?)&lt;\/b&gt;/', '<b style="font-size:14px">$1</b>',
-						          preg_replace( '/&lt;a href="([^"]*)"( target="_blank")?' .
-						                        '&gt;(.*?)&lt;\/a&gt;/',
-						                        '<a href="$1"$2>$3</a>',
-						                        htmlspecialchars( $dagFormatNotice,
-						                                          ENT_NOQUOTES ) ) );
-				$dagFormatNotice = str_replace( [ "\r\n", "\n" ], '<br>', $dagFormatNotice );
-				$dagFormatNotice = '<img src="' . APP_PATH_WEBROOT .
-					               '/Resources/images/exclamation_orange.png"> ' . $dagFormatNotice;
 				$dagFormatNotice = json_encode( $dagFormatNotice );
 
 ?>
