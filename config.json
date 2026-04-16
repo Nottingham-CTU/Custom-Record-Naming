@@ -2,7 +2,7 @@
 	"name" : "Custom Record Naming",
 	"tt_name" : "module_name",
 	"namespace" : "Nottingham\\CustomRecordNaming",
-	"description" : "Automatically name records according to a custom naming or numbering scheme.<br>Allows per-arm configuration of naming schemes.<br>Supports public surveys (includes per-DAG public survey links) and the REDCap mobile app.",
+	"description" : "Automatically name records according to a custom naming or numbering scheme.<br>Allows per-arm configuration of naming schemes.<br>Supports public surveys (includes per-DAG public survey links) and the REDCap mobile app.<br>Languages: English, Français",
 	"tt_description" : "module_desc",
 	"authors": [
 		{
