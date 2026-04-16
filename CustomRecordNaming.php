@@ -468,6 +468,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( substr( $pagePath, 0, 19 ) == 'DataEntry/index.php' &&
 				 isset( $_POST['module-custom-record-naming-new-record'] ) )
 			{
+				if ( $userGroup == null && isset( $_POST['__GROUPID__'] ) )
+				{
+					$groupCode = $this->getGroupCode( (int)$_POST['__GROUPID__'], $armSettingID );
+				}
 				unset( $_POST['module-custom-record-naming-new-record'],
 				       $_SESSION['module_customrecordnaming_selecteddag'] );
 				$submittedRecordName = $_POST[ \REDCap::getRecordIdField() ];
