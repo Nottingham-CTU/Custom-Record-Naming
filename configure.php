@@ -553,7 +553,10 @@ $(function()
                    '{cursor:default;font-weight:bold;color:#000}' +
                    '.checkboxes label{margin-right:10px}</style>')
   $('#modsettings').tabs()
-  $('.multiselect').sortable({"update":function(){ vFuncUpdateNameType($(this)) }})
+  $('.multiselect').sortable({
+    "tolerance":"pointer",
+    "update":function(){ vFuncUpdateNameType($(this)) }
+  })
   $('.multiselect :checkbox').click(function(){ vFuncUpdateNameType($(this).closest('ul')) })
   $('.checkboxes :checkbox').click(function(){ vFuncUpdateCheckboxes($(this).closest('span')) })
   $('.choose-dag-format').each(function()
