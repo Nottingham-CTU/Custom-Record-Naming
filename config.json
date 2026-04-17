@@ -21,7 +21,7 @@
 		"project" : [
 			{
 				"name" : "Custom Record Naming",
-				"tt_name" : "module_name",
+				"tt_name" : "module_name_short",
 				"icon" : "fas fa-list-ul",
 				"url" : "configure.php"
 			}
@@ -31,11 +31,13 @@
 		{
 			"key" : "dag-format",
 			"name" : "Restrict DAG name format (regular expression)",
+			"tt_name" : "setting_dag_format",
 			"type" : "text"
 		},
 		{
 			"key" : "dag-format-notice",
 			"name" : "Information about DAG name format to be displayed on DAGs page",
+			"tt_name" : "setting_dag_format_notice",
 			"type" : "textarea"
 		},
 		{

@@ -10,7 +10,7 @@ if ( ! $module->canConfigure() )
 
 $listRecordNameTypes = $module->getListRecordNameTypes();
 
-$listRecordNumberingTypes = [ 'A' => 'Arm' ] +
+$listRecordNumberingTypes = [ 'A' => $module->tt('setting_scheme_numbering_arm') ] +
                             array_diff_key( $module->getListRecordNameTypes(),
                                             [ 'R' => true, 'C' => true, '1' => true ] );
 
@@ -290,23 +290,26 @@ foreach ( $listProjectSettings as $fieldName => $setting )
 	if ( $fieldName == 'dag-format' )
 	{
 		// Provide a dropdown for DAG format restriction to auto-fill regex field.
-		echo '<tr><td style="padding:10px 0px 10px 0px">Restrict DAG name format</td>' .
-		     '<td style="padding:10px 0px 10px 0px"><select class="choose-general-dag-format">' .
-		     '<option value=""></option><option value="^[0-9]+[^0-9]">Numeric prefix</option>' .
-		     '<option value="^[0-9]+[ ]">Numeric prefix (space separator)</option><option value=' .
-		     '"^[0-9]{2}[^0-9]">Numeric prefix (2 digit)</option><option value="^[0-9]{2}[ ]">' .
-		     'Numeric prefix (2 digit, space separator)</option><option value="^[0-9]{3}[^0-9]">' .
-		     'Numeric prefix (3 digit)</option><option value="^[0-9]{3}[ ]">Numeric prefix (3 ' .
-		     'digit, space separator)</option><option value="^[0-9]{4}[^0-9]">Numeric prefix ' .
-		     '(4 digit)</option><option value="^[0-9]{4}[ ]">Numeric prefix (4 digit, space ' .
-		     'separator)</option><option value="^[0-9]{5}[^0-9]">Numeric prefix (5 digit)' .
-		     '</option><option value="^[0-9]{5}[ ]">Numeric prefix (5 digit, space separator)' .
-		     '</option><option value="^[A-Za-z0-9]{2}[ ]">2 character prefix (space separator)' .
-		     '</option><option value="^[A-Z]{2}[ ]">2 character prefix (uppercase A-Z only, ' .
-		     'space separator)</option><option value="^[A-Za-z0-9]{3}[ ]">3 character prefix ' .
-		     '(space separator)</option><option value="^[A-Z]{3}[ ]">3 character prefix ' .
-		     '(uppercase A-Z only, space separator)</option><option value=":">Custom (regular ' .
-		     'expression)</option></select></td></tr>';
+		echo '<tr><td style="padding:10px 0px 10px 0px">', $module->tt('setting_dag_format_sel'),
+		     '</td><td style="padding:10px 0px 10px 0px"><select class="choose-general-dag-format">',
+		     '<option value=""></option>',
+		     '<option value="^[0-9]+[^0-9]">', $module->tt('dag_format_numprefixr'), '</option>',
+		     '<option value="^[0-9]+[ ]">', $module->tt('dag_format_numprefixs'), '</option>',
+		     '<option value="^[0-9]{2}[^0-9]">', $module->tt('dag_format_numprefixf', '2'), '</option>',
+		     '<option value="^[0-9]{2}[ ]">', $module->tt('dag_format_numprefixfs', '2'), '</option>',
+		     '<option value="^[0-9]{3}[^0-9]">', $module->tt('dag_format_numprefixf', '3'), '</option>',
+		     '<option value="^[0-9]{3}[ ]">', $module->tt('dag_format_numprefixfs', '3'), '</option>',
+		     '<option value="^[0-9]{4}[^0-9]">', $module->tt('dag_format_numprefixf', '4'), '</option>',
+		     '<option value="^[0-9]{4}[ ]">', $module->tt('dag_format_numprefixfs', '4'), '</option>',
+		     '<option value="^[0-9]{5}[^0-9]">', $module->tt('dag_format_numprefixf', '5'), '</option>',
+		     '<option value="^[0-9]{5}[ ]">', $module->tt('dag_format_numprefixfs', '5'), '</option>',
+		     '<option value="^[A-Za-z0-9]{2}[ ]">',
+		     $module->tt('dag_format_charprefixs', '2'), '</option>',
+		     '<option value="^[A-Z]{2}[ ]">', $module->tt('dag_format_charprefixus', '2'), '</option>',
+		     '<option value="^[A-Za-z0-9]{3}[ ]">',
+		     $module->tt('dag_format_charprefixs', '3'), '</option>',
+		     '<option value="^[A-Z]{3}[ ]">', $module->tt('dag_format_charprefixus', '3'), '</option>',
+		     '<option value=":">', $module->tt('dag_format_custom'), '</option></select></td></tr>';
 	}
 	if ( $fieldName == 'reserved-language-project' )
 	{
@@ -379,6 +382,17 @@ foreach ( $listArms as $armID => $armName )
 			// Numeric fields have a 'number' type.
 			$fieldType = 'number';
 		}
+		elseif ( $fieldName == 'scheme-number-pad' )
+		{
+			foreach ( $fieldChoices as $k => $v )
+			{
+				if ( preg_match( '/^[0-9]+ digits$/', $v ) )
+				{
+					$fieldChoices[ $k ] = $module->tt( 'setting_scheme_number_pad_digits',
+					                                   explode( ' ', $v )[0] );
+				}
+			}
+		}
 		elseif ( $fieldName == 'scheme-name-prefix' )
 		{
 			// Add a note before the prefix, separator and suffix fields.
@@ -388,7 +402,8 @@ foreach ( $listArms as $armID => $armName )
 		elseif ( $fieldName == 'scheme-dag-format' )
 		{
 			// Provide a dropdown for DAG format to auto-fill regex field.
-			echo '<tr data-type="G"><td style="padding:10px 0px 10px 0px">Accept DAG name format',
+			echo '<tr data-type="G"><td style="padding:10px 0px 10px 0px">',
+			     $module->tt('setting_scheme_dag_format_sel'),
 			     '</td><td style="padding:10px 0px 10px 0px"><select class="choose-dag-format">',
 			     '<option value=""></option><option value="^([^ ]+)[ ]">',
 			     $module->tt('dag_format_space'), '</option><option value="^([0-9]+)[^0-9]">',
@@ -423,8 +438,9 @@ foreach ( $listArms as $armID => $armName )
 	}
 	if ( $firstArm )
 	{
-		echo '<tr><td style="padding:10px 0px 10px 0px">Apply to all arms</td><td style="padding:' .
-		     '10px 0px 10px 0px"><input type="checkbox" name="apply_all_arms" value="1">';
+		echo '<tr><td style="padding:10px 0px 10px 0px">', $module->tt('setting_apply_all_arms'),
+		     '</td><td style="padding:10px 0px 10px 0px">',
+		     '<input type="checkbox" name="apply_all_arms" value="1">';
 		if ( ! empty( $listNonEmptyArms ) )
 		{
 			echo ' &nbsp;&nbsp;<span class="yellow"><img src="', APP_PATH_WEBROOT, '/Resources/',
