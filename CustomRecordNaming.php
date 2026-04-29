@@ -1080,6 +1080,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 		// Start by deeming the arm/DAG combo as valid.
 		$validConfig = true;
+		$nameType = '';
 
 		// Identify the set of settings for the arm.
 		$armID = $this->getArmIdFromEventId( $event_id );
@@ -1087,6 +1088,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( is_array( $listSettingArmIDs ) && in_array( $armID, $listSettingArmIDs ) )
 		{
 			$armSettingID = array_search( $armID, $listSettingArmIDs );
+			$nameType = $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ];
 		}
 		else
 		{
@@ -1103,7 +1105,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( $validConfig )
 		{
 			$dagID = $this->dagQueryID( $_GET['_dag'] ?? $_GET['dag'], true );
-			if ( $dagID === false || $this->getGroupCode( $dagID, $armSettingID ) === false )
+			if ( $dagID === false ||
+			     ( strpos( $nameType, 'G' ) !== false &&
+			       $this->getGroupCode( $dagID, $armSettingID ) === false ) )
 			{
 				$validConfig = false;
 			}
@@ -1122,7 +1126,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$dagParam = preg_replace( '/[^0-9A-Za-z]/', '', $_GET['_dag'] ?? $_GET['dag'] );
 
 		// Get the public survey logic mode and apply it if applicable.
-		$nameType = $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ];
 		$pubSvLogicMode =
 				$this->getProjectSetting( 'scheme-public-survey-logic-mode' )[ $armSettingID ];
 		if ( strpos( $nameType, 'S' ) !== false )
