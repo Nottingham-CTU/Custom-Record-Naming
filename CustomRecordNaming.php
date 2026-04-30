@@ -1222,19 +1222,35 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 	// Function which can be called by other modules to ask that a record name be created.
+	// Note that the record is not actually created by this function, but only when data is first
+	// written to the record ID.
 	public function createRecord( $eventID, $dagID )
 	{
+		$getPidValue = isset( $_GET['pid'] ) ? $_GET['pid'] : null;
+		$_GET['pid'] = (string)$this->query('SELECT ea.project_id FROM redcap_events_metadata em ' .
+		                                    'JOIN redcap_events_arms ea ON em.arm_id = ea.arm_id ' .
+		                                    'WHERE em.event_id = ?',
+		                                    [ $eventID ] )->fetch_assoc()['project_id'];
 		$listSettingArmIDs = $this->getProjectSetting( 'scheme-arm' );
 		$armID = $this->getArmIdFromEventId( $eventID );
 		$dagID = ( $dagID === null ) ? '' : $dagID;
+		$recordName = null;
 		if ( is_array( $listSettingArmIDs ) && in_array( $armID, $listSettingArmIDs ) )
 		{
 			$armSettingID = array_search( $armID, $listSettingArmIDs );
 			$groupCode = $this->getGroupCode( $dagID, $armSettingID );
 			$groupCode = ( $groupCode === false ) ? '' : $groupCode;
-			return $this->generateRecordName( $armID, $armSettingID, $groupCode, null, true );
+			$recordName = $this->generateRecordName( $armID, $armSettingID, $groupCode, null, true );
 		}
-		return null;
+		if ( $getPidValue === null )
+		{
+			unset( $_GET['pid'] );
+		}
+		else
+		{
+			$_GET['pid'] = $getPidValue;
+		}
+		return $recordName;
 	}
 
 
@@ -1596,7 +1612,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	// Optionally with the specified record name (1 = record exists, 0 = record doesn't exist).
 	protected function countRecords( $recordName = null )
 	{
-		return count( \REDCap::getData( 'array', $recordName, \REDCap::getRecordIdField() ) );
+		return count( \REDCap::getData( ( defined('PROJECT_ID') ? PROJECT_ID : $_GET['pid'] ),
+		                                'array', $recordName, $this->getRecordIdField() ) );
 	}
 
 
@@ -2017,8 +2034,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	// Given a DAG ID, get the DAG code for use in record names.
 	protected function getGroupCode( $dagID, $armSettingID )
 	{
-		$listGroups = \REDCap::getGroupNames( false );
-		$groupName = isset( $listGroups[ $dagID ] ) ? $listGroups[ $dagID ] : '';
+		$groupName = $this->query( 'SELECT group_name FROM redcap_data_access_groups ' .
+		                           'WHERE project_id = ? AND group_id = ? LIMIT 1',
+		                           [ $_GET['pid'], $dagID ] )->fetch_assoc();
+		$groupName = ( $groupName ? $groupName['group_name'] : '' );
 		$dagFormat = $this->getProjectSetting( 'scheme-dag-format' )[ $armSettingID ];
 		if ( $groupName == '' )
 		{
