@@ -241,8 +241,13 @@
 					"choices" : [
 						{
 							"value" : "",
-							"name" : "On auto numbering (default)",
+							"name" : "Default",
 							"tt_name" : "option_scheme_name_trigger"
+						},
+						{
+							"value" : "A",
+							"name" : "On auto numbering only",
+							"tt_name" : "option_scheme_name_trigger_a"
 						},
 						{
 							"value" : "R",

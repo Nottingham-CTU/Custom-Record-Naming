@@ -211,8 +211,14 @@ This is the algorithm used to generate the check digits for the record name.
 
 ### Trigger record naming
 Set the conditions in which the module will generate a record name.
-* **On auto numbering**<br>
-  This option will generate a record name whenever REDCap record auto-numbering is attempted.
+* **Default**<br>
+  This option is intended to invoke custom record naming in all scenarios where it is sensible to do
+  so. It is currently equivalent to *on auto numbering only* but this may change in future.
+* **On auto numbering only**<br>
+  This option will generate a record name whenever REDCap record auto-numbering is attempted. It is
+  guaranteed not to interfere with the module's ability to generate a name but does nothing to stop
+  the assignment of record names in ways which bypass the module (e.g. manually entering a value in
+  the `id` parameter of the URL).
 * **On auto numbering and when naming in REDCap format**<br>
   This option will generate a record name on auto-numbering and whenever a record is created with a
   REDCap format name (one number e.g. *12* or two numbers separated by a dash e.g. *32-6*). This
@@ -226,7 +232,7 @@ Set the conditions in which the module will generate a record name.
 
 ### Allow new records on this arm
 Optionally limit creation of records on the arm.
-* **Forms and surveys**<br>
+* **Forms and surveys (default)**<br>
   New records can be created using data entry forms and public surveys.
 * **Forms and surveys, enforce complete status on first submission**<br>
   New records can be created using data entry forms and public surveys, but in form mode, the first
