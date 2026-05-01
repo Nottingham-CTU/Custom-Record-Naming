@@ -342,7 +342,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 						$blockedArmRedirect = 0;
 						foreach ( $listAccessArmLogic as $accessArmLogicID => $accessArmLogic2 )
 						{
-							if ( $this->evaluateLogic( $accessArmLogic2 ) )
+							if ( $this->evaluateLogic( $accessArmLogic2,
+							                           $listSettingArmIDs[ $accessArmLogicID ] ) )
 							{
 								$blockedArmRedirect =
 										array_search( $listSettingArmIDs[ $accessArmLogicID ],
