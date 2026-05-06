@@ -467,7 +467,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// If a new record is being submitted, check that the record name is still unused. If
 			// it is not, then generate a new one.
 			if ( substr( $pagePath, 0, 19 ) == 'DataEntry/index.php' &&
-				 isset( $_POST['module-custom-record-naming-new-record'] ) )
+				 isset( $_POST['module-custom-record-naming-new-record'] ) &&
+				 ( $_POST['submit-action'] ?? '' ) != 'submit-btn-cancel' )
 			{
 				if ( $userGroup == null && isset( $_POST['__GROUPID__'] ) )
 				{
