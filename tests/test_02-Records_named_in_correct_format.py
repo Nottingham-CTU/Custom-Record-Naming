@@ -86,7 +86,12 @@ class Test_02_Records_named_in_correct_format:
     self.driver.find_element(By.ID, "ui-id-2").click()
     ActionChains(self.driver).drag_and_drop(self.driver.find_element(By.CSS_SELECTOR, ".ui-sortable-handle[data-value=\"R\"]"),self.driver.find_element(By.CSS_SELECTOR, ".ui-sortable-handle[data-value=\"U\"]")).perform()
     assert self.driver.find_element(By.NAME, "scheme-name-type[]").get_attribute("value") == "GR"
+    self.driver.execute_script("//SETDESC:Swap order of naming components")
+    self.driver.find_element(By.CSS_SELECTOR, ".ui-sortable-handle[data-value=\"G\"]").send_keys("SAVESCREENSHOT")
+    self.driver.execute_script("$('#south').remove()")
+    time.sleep(0.5)
     self.driver.find_element(By.CSS_SELECTOR, "p > button.btn-primaryrc").click()
+    WebDriverWait(self.driver, 30).until(expected_conditions.presence_of_element_located((By.ID, "south")))
     self.vars["username"] = "user1"
     sub=Sub1();sub.driver=self.driver;sub.vars=self.vars;sub.test_fn_switchuser() # Run fn switchuser
     self.driver.find_element(By.CSS_SELECTOR, "a[href*=\"DataEntry/record_status_dashboard.php\"]").click()

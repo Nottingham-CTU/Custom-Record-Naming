@@ -1257,10 +1257,40 @@
           "id": "ece4876e-6446-473a-8089-2a4123eaa5e4"
         },
         {
+          "command": "runScript",
+          "target": "//SETDESC:Swap order of naming components",
+          "value": "",
+          "id": "b929016b-cdc1-46c0-a2fc-ad7e1fe1cae2"
+        },
+        {
+          "command": "type",
+          "target": "css=.ui-sortable-handle[data-value=\"G\"]",
+          "value": "SAVESCREENSHOT",
+          "id": "82fa84ef-5a61-402d-8d95-4c51c65a7b8c"
+        },
+        {
+          "command": "runScript",
+          "target": "$('#south').remove()",
+          "value": "",
+          "id": "44509df9-dfc4-4641-918d-25562f62f6a7"
+        },
+        {
+          "command": "pause",
+          "target": "500",
+          "value": "",
+          "id": "13c5f7c4-3131-4693-accd-f259c0bdd9ce"
+        },
+        {
           "command": "click",
           "target": "css=p > button.btn-primaryrc",
           "value": "",
           "id": "7707bb63-38c4-430a-ad0e-78b629aa58ad"
+        },
+        {
+          "command": "waitForElementPresent",
+          "target": "id=south",
+          "value": "30000",
+          "id": "0f8e071c-6614-4623-8bcb-bb95608de892"
         },
         {
           "command": "store",
@@ -6114,6 +6144,12 @@
           "id": "385c2119-09f3-4bd1-bc92-8bb965a31e73"
         },
         {
+          "command": "pause",
+          "target": "500",
+          "value": "",
+          "id": "189025d6-feb1-4914-89e2-a0495ad23435"
+        },
+        {
           "command": "click",
           "target": "css=p > button.btn-primaryrc",
           "value": "",
@@ -6298,6 +6334,12 @@
           "id": "326c529b-fd9d-426a-ac6f-3b03142463fd"
         },
         {
+          "command": "pause",
+          "target": "500",
+          "value": "",
+          "id": "50829024-c247-4d68-9266-77ecae30bb88"
+        },
+        {
           "command": "click",
           "target": "css=p > button.btn-primaryrc",
           "value": "",
@@ -6457,6 +6499,12 @@
           "target": "$('#south').remove()",
           "value": "",
           "id": "01bdde8a-5f70-4777-ab7f-2694a05b637d"
+        },
+        {
+          "command": "pause",
+          "target": "500",
+          "value": "",
+          "id": "bd4075f9-7c93-4c67-91cb-f08bc9824bf2"
         },
         {
           "command": "click",
@@ -6670,6 +6718,12 @@
           "target": "$('#south').remove()",
           "value": "",
           "id": "60b9a974-dd86-49be-8874-1d39419f4b5c"
+        },
+        {
+          "command": "pause",
+          "target": "500",
+          "value": "",
+          "id": "4db273ed-67a9-4c2f-9cf6-ad12ad5b1656"
         },
         {
           "command": "click",
