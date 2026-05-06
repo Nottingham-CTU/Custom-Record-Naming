@@ -1,0 +1,67 @@
+[
+	{
+		"file" : "test_01-DAG_names_restricted.py",
+		"name" : "DAG names can be restricted to a specified format",
+		"expected" : "Set the DAG format and corresponding notice message. Ensure the message is displayed on the DAGs page and that only DAG names matching the format can be used when creating or renaming DAGs."
+	},
+	{
+		"file" : "test_02-Records_named_in_correct_format.py",
+		"name" : "Records are named in the correct format",
+		"expected" : "The record is named according to the specified format when new records are created in REDCap or via public survey. Changing the order of the name components is correctly reflected in generated record names."
+	},
+	{
+		"file" : "test_03-Record_numbers_assigned_correctly.py",
+		"name" : "Record numbers are assigned to records correctly",
+		"expected" : "Record numbers are correctly assigned, based on the selected starting number, zero-padding, and the components used to select the numbering counter (e.g. arm, timestamp)."
+	},
+	{
+		"file" : "test_04-DAG_used_in_name_correctly.py",
+		"name" : "The DAG is used in the record name correctly",
+		"expected" : "The specified part of the DAG (based on the accepted format) is used in the record name when new records are created in REDCap or via public survey."
+	},
+	{
+		"file" : "test_05-User_supplied_component.py",
+		"name" : "The user supplied component is used in the record name correctly",
+		"expected" : "When creating a new record in REDCap or via public survey, a prompt is displayed to enter a value to be used in the record name. The entered value is validated and if valid is correctly inserted into the record name."
+	},
+	{
+		"file" : "test_06-Timestamp_component.py",
+		"name" : "The timestamp component is used in the record name correctly",
+		"expected" : "The timestamp, according to the specified format, is used in the record name when new records are created in REDCap or via public survey."
+	},
+	{
+		"file" : "test_07-Field_value_lookup.py",
+		"name" : "The field value lookup component is used in the record name correctly",
+		"expected" : "When creating a new record in REDCap or via public survey, a prompt is displayed to choose a value to be used in the record name. The values to choose from are loaded and filtered as expected."
+	},
+	{
+		"file" : "test_08-Check_digits_mod97.py",
+		"name" : "The mod97 check digits are calculated and used in the record name correctly",
+		"expected" : "When record names are generated, the correct check digits for the mod97 algorithm are inserted into the record name."
+	},
+	{
+		"file" : "test_09-Username_component.py",
+		"name" : "The username component is used in the record name correctly",
+		"expected" : "The username is used in the record name when new records are created in REDCap. For public surveys, this component is ignored (empty string used)."
+	},
+	{
+		"file" : "test_10-Constant_value_component.py",
+		"name" : "The constant value component is used in the record name correctly",
+		"expected" : "The constant value component is used in the record name when new records are created."
+	},
+	{
+		"file" : "test_11-Check_digits_mod11.py",
+		"name" : "The mod11 check digits are calculated and used in the record name correctly",
+		"expected" : "When record names are generated, the correct check digits for the mod11 algorithm are inserted into the record name."
+	},
+	{
+		"file" : "test_12-New_records_logic.py",
+		"name" : "Logic to allow new records in the arm",
+		"expected" : "When the specified logic evaluates to false, it is not possible to add a new record in the arm via the record status dashboard or the add/edit records page."
+	},
+	{
+		"file" : "test_13-Arm_access_logic.py",
+		"name" : "Logic to allow access to the arm",
+		"expected" : "When the specified logic evaluates to false, it is not possible to access the arm at all via the record status dashboard or the add/edit records page."
+	}
+]
