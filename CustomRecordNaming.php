@@ -262,6 +262,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 			$armNum = 1;
 			$armID = null;
+			$savedArmSync = '';
+			$resetSavedArm = false;
 			if ( isset( $_GET['arm'] ) && is_numeric( $_GET['arm'] ) )
 			{
 				$armNum = $_GET['arm'];
@@ -281,6 +283,25 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 				$this->getArmIdFromNum( null );
 				$armID = $this->getArmIdFromEventId( $_GET['event_id'] );
+			}
+
+			if ( substr( $pagePath, 0, 25 ) == 'DataEntry/record_home.php' &&
+			     ! isset( $_GET['id'] ) )
+			{
+				// Newer versions of REDCap may save the arm number from when the user selected it
+				// on the add/edit records page, so check this value.
+				$savedArmNum = \UIState::getUIStateValue( PROJECT_ID, 'aer_prefs', 'arm_last' );
+				$savedArmSync = \UIState::getUIStateValue( PROJECT_ID, 'aer_prefs', 'arm_sync' );
+				if ( $savedArmSync == '1' )
+				{
+					$savedArmNum =
+						\UIState::getUIStateValue( PROJECT_ID, 'record_status_dashboard', 'arm' );
+				}
+				if ( $savedArmNum != '' )
+				{
+					$armNum = $savedArmNum;
+					$resetSavedArm = true;
+				}
 			}
 
 			if ( $armID === null )
@@ -369,6 +390,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				// page with the first accessible arm selected.
 				if ( substr( $pagePath, 0, 25 ) == 'DataEntry/record_home.php' )
 				{
+					if ( $resetSavedArm )
+					{
+						\UIState::saveUIStateValue( PROJECT_ID,
+						                            ( $savedArmSync == '1' )
+						                                  ? 'record_status_dashboard' : 'aer_prefs',
+						                            ( $savedArmSync == '1' ) ? 'arm' : 'arm_last',
+						                            $blockedArmRedirect );
+					}
 					$this->redirect( APP_PATH_WEBROOT_FULL . 'redcap_v' . REDCAP_VERSION .
 					                 '/DataEntry/record_home.php?pid=' . $this->getProjectId() .
 					                 '&arm=' . $blockedArmRedirect );
