@@ -1,7 +1,9 @@
 {
-	"name": "Custom Record Naming",
-	"namespace": "Nottingham\\CustomRecordNaming",
-	"description": "Automatically name records according to a custom scheme.<br>Allows per-arm configuration of naming schemes.<br>Supports public surveys (includes per-DAG public survey links) and the REDCap mobile app.",
+	"name" : "Custom Record Naming",
+	"tt_name" : "module_name",
+	"namespace" : "Nottingham\\CustomRecordNaming",
+	"description" : "Automatically name records according to a custom naming or numbering scheme.<br>Allows per-arm configuration of naming schemes.<br>Supports public surveys (includes per-DAG public survey links) and the REDCap mobile app.<br>Languages: English, Français",
+	"tt_description" : "module_desc",
 	"authors": [
 		{
 			"name": "Richard Dooley",
@@ -9,75 +11,96 @@
 			"institution": "University of Nottingham"
 		}
 	],
-	"framework-version" : 15,
-	"compatibility" : { "redcap-version-min" : "14.5.0" },
+	"framework-version" : 16,
+	"compatibility" : {
+		"php-version-min" : "8.1.0",
+		"php-version-max" : "8.99.99",
+		"redcap-version-min" : "15.0.0"
+	},
 	"links" : {
 		"project" : [
-			{ "name" : "Custom Record Naming", "icon" : "fas fa-list-ul", "url" : "configure.php" }
+			{
+				"name" : "Custom Record Naming",
+				"tt_name" : "module_name_short",
+				"icon" : "fas fa-list-ul",
+				"url" : "configure.php"
+			}
 		]
 	},
 	"project-settings" : [
 		{
 			"key" : "dag-format",
 			"name" : "Restrict DAG name format (regular expression)",
+			"tt_name" : "setting_dag_format",
 			"type" : "text"
 		},
 		{
 			"key" : "dag-format-notice",
 			"name" : "Information about DAG name format to be displayed on DAGs page",
+			"tt_name" : "setting_dag_format_notice",
 			"type" : "textarea"
 		},
 		{
 			"key" : "scheme-settings",
 			"name" : "Custom naming scheme",
+			"tt_name" : "setting_scheme_settings",
 			"type" : "sub_settings",
 			"repeatable" : true,
 			"sub_settings" : [
 				{
 					"key" : "scheme-arm",
 					"name" : "Target arm",
+					"tt_name" : "setting_scheme_arm",
 					"type" : "arm-list",
 					"required" : true
 				},
 				{
 					"key" : "scheme-name-type",
 					"name" : "Record name type",
+					"tt_name" : "setting_scheme_name_type",
 					"type" : "text",
 					"required" : true
 				},
 				{
 					"key" : "scheme-name-prefix",
 					"name" : "Record name prefix",
+					"tt_name" : "setting_scheme_name_prefix",
 					"type" : "text"
 				},
 				{
 					"key" : "scheme-name-separator",
 					"name" : "Record name separator",
+					"tt_name" : "setting_scheme_name_separator",
 					"type" : "text"
 				},
 				{
 					"key" : "scheme-name-suffix",
 					"name" : "Record name suffix",
+					"tt_name" : "setting_scheme_name_suffix",
 					"type" : "text"
 				},
 				{
 					"key" : "scheme-const1",
 					"name" : "Constant value",
+					"tt_name" : "setting_scheme_const1",
 					"type" : "text"
 				},
 				{
 					"key" : "scheme-numbering",
 					"name" : "Record numbering",
+					"tt_name" : "setting_scheme_numbering",
 					"type" : "text"
 				},
 				{
 					"key" : "scheme-number-start",
 					"name" : "First record number",
+					"tt_name" : "setting_scheme_number_start",
 					"type" : "text"
 				},
 				{
 					"key" : "scheme-number-pad",
 					"name" : "Zero pad record number",
+					"tt_name" : "setting_scheme_number_pad",
 					"type" : "dropdown",
 					"choices" : [
 						{ "value" : "2", "name" : "2 digits" },
@@ -92,105 +115,191 @@
 				{
 					"key" : "scheme-dag-format",
 					"name" : "Accept DAG name format (regular expression)",
+					"tt_name" : "setting_scheme_dag_format",
 					"type" : "text"
 				},
 				{
 					"key" : "scheme-dag-section",
 					"name" : "DAG format subpattern to use in record name (enter 0 to use entire matching string)",
+					"tt_name" : "setting_scheme_dag_section",
 					"type" : "text"
 				},
 				{
 					"key" : "scheme-prompt-user-supplied",
 					"name" : "Prompt for user supplied name",
+					"tt_name" : "setting_scheme_prompt_user_supplied",
 					"type" : "textarea"
 				},
 				{
 					"key" : "scheme-user-supplied-format",
 					"name" : "User supplied name format (regular expression)",
+					"tt_name" : "setting_scheme_user_supplied_format",
 					"type" : "text"
 				},
 				{
 					"key" : "scheme-timestamp-format",
 					"name" : "Timestamp format (<a href=\"https://www.php.net/manual/en/datetime.format.php\" target=\"_blank\">PHP date/time format</a>)",
+					"tt_name" : "setting_scheme_timestamp_format",
 					"type" : "text"
 				},
 				{
 					"key" : "scheme-timestamp-tz",
 					"name" : "Timezone for timestamp",
+					"tt_name" : "setting_scheme_timestamp_tz",
 					"type" : "radio",
 					"choices" : [
-						{ "value" : "U", "name" : "UTC" },
-						{ "value" : "S", "name" : "Server timezone" }
+						{
+							"value" : "U",
+							"name" : "UTC",
+							"tt_name" : "option_scheme_timestamp_tz_u"
+						},
+						{
+							"value" : "S",
+							"name" : "Server timezone",
+							"tt_name" : "option_scheme_timestamp_tz_s"
+						}
 					]
 				},
 				{
 					"key" : "scheme-public-survey-logic",
 					"name" : "Public survey / mobile app logic (used to generate name from submitted data)",
+					"tt_name" : "setting_scheme_public_survey_logic",
 					"type" : "textarea"
 				},
 				{
 					"key" : "scheme-public-survey-logic-mode",
 					"name" : "Public survey / mobile app logic mode",
+					"tt_name" : "setting_scheme_public_survey_logic_mode",
 					"type" : "radio",
 					"choices" : [
-						{ "value" : "", "name" : "Standard (ignore if not survey/app)" },
-						{ "value" : "F1", "name" : "Replace following name type on survey/app" },
-						{ "value" : "F2", "name" : "Replace following 2 name types on survey/app" },
-						{ "value" : "F3", "name" : "Replace following 3 name types on survey/app" },
-						{ "value" : "A", "name" : "Replace all other name types on survey/app" }
+						{
+							"value" : "",
+							"name" : "Standard (ignore if not survey/app)",
+							"tt_name" : "option_scheme_public_survey_logic_mode"
+						},
+						{
+							"value" : "F1",
+							"name" : "Replace following name type on survey/app",
+							"tt_name" : "option_scheme_public_survey_logic_mode_f1"
+						},
+						{
+							"value" : "F2",
+							"name" : "Replace following 2 name types on survey/app",
+							"tt_name" : "option_scheme_public_survey_logic_mode_f2"
+						},
+						{
+							"value" : "F3",
+							"name" : "Replace following 3 name types on survey/app",
+							"tt_name" : "option_scheme_public_survey_logic_mode_f3"
+						},
+						{
+							"value" : "A",
+							"name" : "Replace all other name types on survey/app",
+							"tt_name" : "option_scheme_public_survey_logic_mode_a"
+						}
 					]
 				},
 				{
 					"key" : "scheme-prompt-field-lookup",
 					"name" : "Prompt for field lookup",
+					"tt_name" : "setting_scheme_prompt_field_lookup",
 					"type" : "textarea"
 				},
 				{
 					"key" : "scheme-field-lookup-value",
 					"name" : "Lookup value from field (used to name record)",
+					"tt_name" : "setting_scheme_field_lookup_value",
 					"type" : "text"
 				},
 				{
 					"key" : "scheme-field-lookup-desc",
 					"name" : "Lookup description from field (used for dropdown in user prompt)",
+					"tt_name" : "setting_scheme_field_lookup_desc",
 					"type" : "text"
 				},
 				{
 					"key" : "scheme-field-lookup-filter",
 					"name" : "Filter records by logic",
+					"tt_name" : "setting_scheme_field_lookup_filter",
 					"type" : "textarea"
 				},
 				{
 					"key" : "scheme-check-digit-algorithm",
 					"name" : "Check digit algorithm",
+					"tt_name" : "setting_scheme_check_digit_algorithm",
 					"type" : "dropdown",
 					"choices" : [
-						{ "value" : "mod97", "name" : "mod97" }
+						{ "value" : "mod97", "name" : "mod97" },
+						{ "value" : "mod11", "name" : "mod11" }
 					]
 				},
 				{
 					"key" : "scheme-name-trigger",
 					"name" : "Trigger custom naming",
+					"tt_name" : "setting_scheme_name_trigger",
 					"type" : "radio",
 					"choices" : [
-						{ "value" : "", "name" : "On auto numbering (default)" },
-						{ "value" : "R", "name" : "On auto numbering and when naming in REDCap format" },
-						{ "value" : "M", "name" : "On auto numbering and upon prefix/suffix mismatch" }
+						{
+							"value" : "",
+							"name" : "Default",
+							"tt_name" : "option_scheme_name_trigger"
+						},
+						{
+							"value" : "A",
+							"name" : "On auto numbering only",
+							"tt_name" : "option_scheme_name_trigger_a"
+						},
+						{
+							"value" : "R",
+							"name" : "On auto numbering and when naming in REDCap format",
+							"tt_name" : "option_scheme_name_trigger_r"
+						},
+						{
+							"value" : "M",
+							"name" : "On auto numbering and upon prefix/suffix mismatch",
+							"tt_name" : "option_scheme_name_trigger_m"
+						}
 					]
 				},
 				{
 					"key" : "scheme-allow-new",
 					"name" : "Allow new records on this arm",
+					"tt_name" : "setting_scheme_allow_new",
 					"type" : "radio",
 					"choices" : [
-						{ "value" : "", "name" : "Always (default)" },
-						{ "value" : "C", "name" : "Always, enforce complete status on first submission" },
-						{ "value" : "S", "name" : "On surveys only" }
+						{
+							"value" : "",
+							"name" : "Forms and surveys (default)",
+							"tt_name" : "option_scheme_allow_new"
+						},
+						{
+							"value" : "C",
+							"name" : "Forms and surveys, enforce complete status on first submission",
+							"tt_name" : "option_scheme_allow_new_c"
+						},
+						{
+							"value" : "S",
+							"name" : "Surveys only",
+							"tt_name" : "option_scheme_allow_new_s"
+						}
 					]
+				},
+				{
+					"key" : "scheme-allow-new-logic",
+					"name" : "Logic to allow new records on this arm",
+					"tt_name" : "setting_scheme_allow_new_logic",
+					"type" : "textarea"
+				},
+				{
+					"key" : "scheme-allow-access-logic",
+					"name" : "Logic to allow access to this arm",
+					"tt_name" : "setting_scheme_allow_access_logic",
+					"type" : "textarea"
 				},
 				{
 					"key" : "scheme-instrument",
 					"name" : "Load data entry form",
+					"tt_name" : "setting_scheme_instrument",
 					"type" : "text"
 				}
 			]
@@ -198,6 +307,7 @@
 		{
 			"key" : "project-record-counter",
 			"name" : "Record counters (not for export)",
+			"tt_name" : "setting_project_record_counter",
 			"type" : "text",
 			"super-users-only" : true
 		}

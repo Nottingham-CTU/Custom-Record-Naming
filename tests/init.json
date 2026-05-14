@@ -1,0 +1,16 @@
+[
+	{
+		"action" : "module",
+		"source" : "this",
+		"name" : "custom_record_naming"
+	},
+	{
+		"action" : "selenium",
+		"file" : "init.py"
+	},
+	{
+		"action" : "external-save",
+		"url" : "[secret-1]",
+		"data" : {"name":"Custom Record Naming REDCap Module Functionality Testing.pdf","file":"[pdf-inst]","version":"[unit-version] / RC [redcap-version]"}
+	}
+]

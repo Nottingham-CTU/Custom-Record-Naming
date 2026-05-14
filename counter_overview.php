@@ -29,13 +29,13 @@ require_once APP_PATH_DOCROOT . 'ProjectGeneral/header.php';
 $listCounters = json_decode( $module->getProjectSetting( 'project-record-counter' ), true );
 
 ?>
-<div class="projhdr">Record Counter Overview</div>
+<div class="projhdr"><?php echo $module->tt('counter_overview'); ?></div>
 <table class="dataTable cell-border no-footer">
  <thead>
   <tr>
-   <th>Counter ID</th>
-   <th>Counter Value</th>
-   <th>New Counter Value</th>
+   <th><?php echo $module->tt('counter_id'); ?></th>
+   <th><?php echo $module->tt('counter_value'); ?></th>
+   <th><?php echo $module->tt('counter_new_value'); ?></th>
   </tr>
  </thead>
  <tbody>
@@ -44,15 +44,15 @@ foreach ( $listCounters as $counterID => $counterValue )
 {
 ?>
   <tr>
-   <td><?php echo htmlspecialchars( $counterID ); ?></td>
-   <td><?php echo htmlspecialchars( $counterValue ); ?></td>
+   <td><?php echo $module->escape( $counterID ); ?></td>
+   <td><?php echo $module->escape( $counterValue ); ?></td>
    <td>
-    <form method="post" onsubmit="return confirm('Set new value for counter <?php
-	echo htmlspecialchars( $counterID ); ?>?')">
-     <input type="hidden" name="counterID" value="<?php echo htmlspecialchars( $counterID ); ?>">
+    <form method="post" onsubmit="return confirm(&quot;<?php
+	echo $module->tt( 'counter_confirm', $counterID ); ?>?&quot;)">
+     <input type="hidden" name="counterID" value="<?php echo $module->escape( $counterID ); ?>">
      <input type="number" name="counterValue" value="<?php
-	echo htmlspecialchars( $counterValue ); ?>" min="1" style="width:95px">
-     <input type="submit" value="Set">
+	echo $module->escape( $counterValue ); ?>" min="1" style="width:95px">
+     <input type="submit" value="<?php echo $module->tt('counter_set'); ?>">
     </form>
   </tr>
 <?php

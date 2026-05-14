@@ -234,6 +234,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$this->userGroup = null;
 		$this->groupCode = null;
 		$this->allowNew = '';
+		$this->promptDAG = false;
 
 		$pagePath = substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ) );
 
@@ -245,18 +246,32 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			   substr( $pagePath, 0, 37 ) == 'DataEntry/record_status_dashboard.php' ) )
 		{
 			// Determine the current DAG and arm.
-			$userRights = \REDCap::getUserRights( USERID );
-			$userGroup = $userRights[ USERID ][ 'group_id' ]; // group ID or NULL
+			$userRights = $this->getUser()->getRights();
+			$userGroup = $userRights['group_id']; // group ID or NULL
+			if ( $userGroup == null && isset( $_COOKIE['redcap_custom_record_name_selecteddag'] ) )
+			{
+				$listValidDAGs = array_keys( \REDCap::getGroupNames() );
+				if ( in_array( $_COOKIE['redcap_custom_record_name_selecteddag'], $listValidDAGs ) )
+				{
+					$userGroup = intval( $_COOKIE['redcap_custom_record_name_selecteddag'] );
+					$_SESSION['module_customrecordnaming_selecteddag'] = $userGroup;
+					setcookie( 'redcap_custom_record_name_selecteddag', '', 0, '', '', true );
+				}
+			}
 			$this->userGroup = $userGroup;
 
 			$armNum = 1;
 			$armID = null;
+			$savedArmSync = '';
+			$resetSavedArm = false;
 			if ( isset( $_GET['arm'] ) && is_numeric( $_GET['arm'] ) )
 			{
 				$armNum = $_GET['arm'];
 			}
 			elseif ( substr( $pagePath, 0, 37 ) == 'DataEntry/record_status_dashboard.php' )
 			{
+				// On the record status dashboard, the arm ID can be saved from when the user
+				// previously viewed it, so check this value.
 				$savedArmNum =
 					\UIState::getUIStateValue( PROJECT_ID, 'record_status_dashboard', 'arm' );
 				if ( $savedArmNum != '' )
@@ -268,6 +283,25 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 				$this->getArmIdFromNum( null );
 				$armID = $this->getArmIdFromEventId( $_GET['event_id'] );
+			}
+
+			if ( substr( $pagePath, 0, 25 ) == 'DataEntry/record_home.php' &&
+			     ! isset( $_GET['id'] ) )
+			{
+				// Newer versions of REDCap may save the arm number from when the user selected it
+				// on the add/edit records page, so check this value.
+				$savedArmNum = \UIState::getUIStateValue( PROJECT_ID, 'aer_prefs', 'arm_last' );
+				$savedArmSync = \UIState::getUIStateValue( PROJECT_ID, 'aer_prefs', 'arm_sync' );
+				if ( $savedArmSync == '1' )
+				{
+					$savedArmNum =
+						\UIState::getUIStateValue( PROJECT_ID, 'record_status_dashboard', 'arm' );
+				}
+				if ( $savedArmNum != '' )
+				{
+					$armNum = $savedArmNum;
+					$resetSavedArm = true;
+				}
 			}
 
 			if ( $armID === null )
@@ -283,64 +317,139 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$schemePrefix = '';
 			$schemeSuffix = '';
 
-			// If the arm ID cannot be determined, a record cannot be created.
+			// If the arm ID cannot be determined or there are no settings for the arm, a record
+			// cannot be created.
 			if ( $armID === null )
 			{
 				$this->canAddRecord = false;
 				$this->hasSettingsForArm = false;
+			}
+			else
+			{
+				$listSettingArmIDs = $this->getProjectSetting( 'scheme-arm' );
+				if ( is_array( $listSettingArmIDs ) && in_array( $armID, $listSettingArmIDs ) )
+				{
+					$armSettingID = array_search( $armID, $listSettingArmIDs );
+				}
+				else
+				{
+					$this->canAddRecord = false;
+					$this->hasSettingsForArm = false;
+				}
+			}
+
+			// Check that the logic is satisfied to allow access to the arm and for a new record
+			// to be created.
+			$blockedArmRedirect = false;
+			if ( $this->canAddRecord )
+			{
+				$listAccessArmLogic = $this->getProjectSetting('scheme-allow-access-logic');
+				$accessArmLogic = ( is_array( $listAccessArmLogic ) &&
+				                    isset( $listAccessArmLogic[ $armSettingID ] ) )
+				                  ? $listAccessArmLogic[ $armSettingID ] : '';
+				$accessArmLogic = $this->evaluateLogic( $accessArmLogic, $armID );
+				$createRecordLogic = $this->getProjectSetting('scheme-allow-new-logic');
+				$createRecordLogic = ( is_array( $createRecordLogic ) &&
+				                       isset( $createRecordLogic[ $armSettingID ] ) )
+				                     ? $createRecordLogic[ $armSettingID ] : '';
+				$createRecordLogic = $this->evaluateLogic( $createRecordLogic, $armID );
+				if ( ! $accessArmLogic || ! $createRecordLogic )
+				{
+					$this->canAddRecord = false;
+					$this->blockedBySettings = true;
+					if ( ! $accessArmLogic )
+					{
+						// If access arm logic is not satisfied, identify an arm we can redirect to.
+						$blockedArmRedirect = 0;
+						foreach ( $listAccessArmLogic as $accessArmLogicID => $accessArmLogic2 )
+						{
+							if ( $this->evaluateLogic( $accessArmLogic2,
+							                           $listSettingArmIDs[ $accessArmLogicID ] ) )
+							{
+								$blockedArmRedirect =
+										array_search( $listSettingArmIDs[ $accessArmLogicID ],
+										              $this->listArmIdNum );
+								break;
+							}
+						}
+					}
+				}
+			}
+
+			// If we need to redirect away from a blocked arm, do this here.
+			if ( $blockedArmRedirect !== false )
+			{
+				// If there are no accessible arms, redirect to the project home.
+				if ( $blockedArmRedirect === 0 )
+				{
+					$this->redirect( APP_PATH_WEBROOT_FULL . 'redcap_v' . REDCAP_VERSION .
+					                 '/index.php?pid=' . $this->getProjectId() );
+					return;
+				}
+				// Otherwise redirect to the add/edit records page or the record status dashboard
+				// page with the first accessible arm selected.
+				if ( substr( $pagePath, 0, 25 ) == 'DataEntry/record_home.php' )
+				{
+					if ( $resetSavedArm )
+					{
+						\UIState::saveUIStateValue( PROJECT_ID,
+						                            ( $savedArmSync == '1' )
+						                                  ? 'record_status_dashboard' : 'aer_prefs',
+						                            ( $savedArmSync == '1' ) ? 'arm' : 'arm_last',
+						                            $blockedArmRedirect );
+					}
+					$this->redirect( APP_PATH_WEBROOT_FULL . 'redcap_v' . REDCAP_VERSION .
+					                 '/DataEntry/record_home.php?pid=' . $this->getProjectId() .
+					                 '&arm=' . $blockedArmRedirect );
+					return;
+				}
+				$this->redirect( APP_PATH_WEBROOT_FULL . 'redcap_v' . REDCAP_VERSION .
+				                 '/DataEntry/record_status_dashboard.php?pid=' .
+				                 $this->getProjectId() . '&arm=' . $blockedArmRedirect );
+				return;
 			}
 
 			// Check that the settings have been completed for the chosen arm. If there is no
 			// naming scheme for the arm, then a record cannot be created.
 			if ( $this->canAddRecord )
 			{
-				$listSettingArmIDs = $this->getProjectSetting( 'scheme-arm' );
-				if ( is_array( $listSettingArmIDs ) && in_array( $armID, $listSettingArmIDs ) )
+				if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
+				             'U' ) !== false )
 				{
-					$armSettingID = array_search( $armID, $listSettingArmIDs );
-					if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
-					             'U' ) !== false )
-					{
-						$this->userSuppliedComponentPrompt =
-							$this->getProjectSetting( 'scheme-prompt-user-supplied' )[ $armSettingID ];
-						$this->userSuppliedComponentRegex =
-							$this->getProjectSetting( 'scheme-user-supplied-format' )[ $armSettingID ];
-					}
-					if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
-					             'F' ) !== false )
-					{
-						$this->fieldLookupPrompt =
-							$this->getProjectSetting( 'scheme-prompt-field-lookup' )[ $armSettingID ];
-						$this->fieldLookupList =
-							$this->getFieldLookupList(
-								$this->getProjectSetting( 'scheme-field-lookup-value' )[ $armSettingID ],
-								$this->getProjectSetting( 'scheme-field-lookup-desc' )[ $armSettingID ],
-								$this->getProjectSetting( 'scheme-field-lookup-filter' )[ $armSettingID ] );
-					}
-					$schemePrefix = $this->getProjectSetting( 'scheme-name-prefix' )[ $armSettingID ];
-					$schemeSuffix = $this->getProjectSetting( 'scheme-name-suffix' )[ $armSettingID ];
-					$schemeTriggerOn = $this->getProjectSetting( 'scheme-name-trigger' );
-					$triggerOnRCName = ( is_array( $schemeTriggerOn ) &&
-					                     isset( $schemeTriggerOn[ $armSettingID ] ) )
-					                   ? ( $schemeTriggerOn[ $armSettingID ] == 'R' ) : false;
-					$triggerOnMismatch = ( is_array( $schemeTriggerOn ) &&
-					                       isset( $schemeTriggerOn[ $armSettingID ] ) )
-					                     ? ( $schemeTriggerOn[ $armSettingID ] == 'M' ) : false;
-					$this->allowNew = $this->getProjectSetting( 'scheme-allow-new' );
-					$this->allowNew = ( is_array( $this->allowNew ) &&
-					                    isset( $this->allowNew[ $armSettingID ] ) )
-					                  ? $this->allowNew[ $armSettingID ] : '';
-					$schemeAllowNew = ( $this->allowNew != 'S' );
-					if ( ! $schemeAllowNew )
-					{
-						$this->canAddRecord = false;
-						$this->blockedBySettings = true;
-					}
+					$this->userSuppliedComponentPrompt =
+						$this->getProjectSetting( 'scheme-prompt-user-supplied' )[ $armSettingID ];
+					$this->userSuppliedComponentRegex =
+						$this->getProjectSetting( 'scheme-user-supplied-format' )[ $armSettingID ];
 				}
-				else
+				if ( strpos( $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ],
+				             'F' ) !== false )
+				{
+					$this->fieldLookupPrompt =
+						$this->getProjectSetting( 'scheme-prompt-field-lookup' )[ $armSettingID ];
+					$this->fieldLookupList =
+						$this->getFieldLookupList(
+							$this->getProjectSetting( 'scheme-field-lookup-value' )[ $armSettingID ],
+							$this->getProjectSetting( 'scheme-field-lookup-desc' )[ $armSettingID ],
+							$this->getProjectSetting( 'scheme-field-lookup-filter' )[ $armSettingID ] );
+				}
+				$schemePrefix = $this->getProjectSetting( 'scheme-name-prefix' )[ $armSettingID ];
+				$schemeSuffix = $this->getProjectSetting( 'scheme-name-suffix' )[ $armSettingID ];
+				$schemeTriggerOn = $this->getProjectSetting( 'scheme-name-trigger' );
+				$triggerOnRCName = ( is_array( $schemeTriggerOn ) &&
+				                     isset( $schemeTriggerOn[ $armSettingID ] ) )
+				                   ? ( $schemeTriggerOn[ $armSettingID ] == 'R' ) : false;
+				$triggerOnMismatch = ( is_array( $schemeTriggerOn ) &&
+				                       isset( $schemeTriggerOn[ $armSettingID ] ) )
+				                     ? ( $schemeTriggerOn[ $armSettingID ] == 'M' ) : false;
+				$this->allowNew = $this->getProjectSetting( 'scheme-allow-new' );
+				$this->allowNew = ( is_array( $this->allowNew ) &&
+				                    isset( $this->allowNew[ $armSettingID ] ) )
+				                  ? $this->allowNew[ $armSettingID ] : '';
+				$schemeAllowNew = ( $this->allowNew != 'S' );
+				if ( ! $schemeAllowNew )
 				{
 					$this->canAddRecord = false;
-					$this->hasSettingsForArm = false;
+					$this->blockedBySettings = true;
 				}
 			}
 
@@ -359,12 +468,17 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 				// If record numbering is based on Data Access Groups (DAGs) or the naming scheme
 				// contains the DAG, then the user must be in a DAG in order to create a record.
+				// If the user is not assigned to any DAG, prompt them for which DAG to use.
 				// Get the scheme DAG format and check the current DAG matches.
 				if ( strpos( $numberingType, 'G' ) !== false || $armNeedsDAG )
 				{
-					if ( $userGroup === null )
+					if ( $userGroup == null )
 					{
-						$this->canAddRecord = false;
+						$this->promptDAG = true;
+						if ( isset( $_GET['auto'] ) )
+						{
+							$this->canAddRecord = false;
+						}
 					}
 					else
 					{
@@ -382,9 +496,15 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// If a new record is being submitted, check that the record name is still unused. If
 			// it is not, then generate a new one.
 			if ( substr( $pagePath, 0, 19 ) == 'DataEntry/index.php' &&
-				 isset( $_POST[ 'module-custom-record-naming-new-record' ] ) )
+				 isset( $_POST['module-custom-record-naming-new-record'] ) &&
+				 ( $_POST['submit-action'] ?? '' ) != 'submit-btn-cancel' )
 			{
-				unset( $_POST[ 'module-custom-record-naming-new-record' ] );
+				if ( $userGroup == null && isset( $_POST['__GROUPID__'] ) )
+				{
+					$groupCode = $this->getGroupCode( (int)$_POST['__GROUPID__'], $armSettingID );
+				}
+				unset( $_POST['module-custom-record-naming-new-record'],
+				       $_SESSION['module_customrecordnaming_selecteddag'] );
 				$submittedRecordName = $_POST[ \REDCap::getRecordIdField() ];
 				$newRecordName =
 						$this->generateRecordName( $armID, $armSettingID, $groupCode, null, true );
@@ -516,12 +636,22 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		       ( substr( $pagePath, 0, 9 ) == 'index.php' &&
 		         $_GET['route'] == 'DataAccessGroupsController:index' ) ) )
 		{
-			$dagFormatErrorText = 'The DAG name you entered does not conform to the allowed' .
-			                      ' DAG name format.';
+			$moduleName = $this->tt('module_name');
+			$dagFormatErrorText = '<p>' . $this->tt('dag_fmt_error') . '</p>';
 			if ( $dagFormatNotice != '' )
 			{
-				$dagFormatErrorText .= '\n\nPlease use a DAG name which conforms to the format' .
-				                       ' described on the DAGs page.';
+				$dagFormatNotice =
+					preg_replace( '/&lt;b&gt;(.*?)&lt;\/b&gt;/', '<b style="font-size:14px">$1</b>',
+					              preg_replace( '/&lt;a href="([^"]*)"( target="_blank")?' .
+					                            '&gt;(.*?)&lt;\/a&gt;/',
+					                            '<a href="$1"$2>$3</a>',
+					                            htmlspecialchars( $dagFormatNotice,
+					                                              ENT_NOQUOTES ) ) );
+				$dagFormatNotice = str_replace( [ "\r\n", "\n" ], '<br>', $dagFormatNotice );
+				$dagFormatNotice = '<img src="' . APP_PATH_WEBROOT .
+				                   '/Resources/images/exclamation_orange.png"> ' . $dagFormatNotice;
+				$dagFormatErrorText .= '<div class="yellow">' . $dagFormatNotice . '</div>';
+				$dagFormatErrorText = json_encode( $dagFormatErrorText );
 			}
 
 ?>
@@ -532,15 +662,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// Prevent creating/renaming DAGs where the DAG name does not conform to the format.
 			if ( $dagFormat != '' )
 			{
-				$dagFormatJS = addslashes( $dagFormat );
 
 ?>
-    var vDAGRegex = new RegExp( '<?php echo $dagFormatJS; ?>' )
+    var vDAGRegex = new RegExp( <?php echo json_encode( $dagFormat ); ?> )
     var vFuncAddGroup = add_group
     var vDoneEnter = false
     add_group = function()
     {
-      if ( $( '#new_group' ).val() != 'Enter new group name' )
+      if ( $( '#new_group' ).val() != '<?php echo addslashes( $GLOBALS['lang']['rights_179'] ); ?>' )
       {
         if ( vDAGRegex.test( $( '#new_group' ).val() ) )
         {
@@ -548,7 +677,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
         }
         else
         {
-          alert( '<?php echo $dagFormatErrorText; ?>' )
+          simpleDialog( <?php echo $dagFormatErrorText, ', ', json_encode( $moduleName ); ?>,
+                        null, null, function(){ $('#new_group').trigger('focus') } )
         }
       }
     }
@@ -561,8 +691,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
         vDoneEnter = true
         if ( field.value != '' && ! vDAGRegex.test( field.value ) )
         {
-          alert( '<?php echo $dagFormatErrorText; ?>' )
-          field.focus()
+          var vFuncBlurEv = field.onblur
+          field.onblur = null
+          var vField = field
+          simpleDialog( <?php echo $dagFormatErrorText, ', ', json_encode( $moduleName ); ?>,
+                        null, null, function(){ vField.focus(); vField.onblur = vFuncBlurEv } )
           field = document.createElement( 'input' )
         }
       }
@@ -581,11 +714,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
         {
           if ( ! vDoneEnter )
           {
-            alert( '<?php echo $dagFormatErrorText; ?>' )
+            var vFocusField = field
+            simpleDialog( <?php echo $dagFormatErrorText, ', ', json_encode( $moduleName ); ?>,
+                          null, null, function() { vFocusField.focus() } )
           }
           vDoneEnter = true
-          var vFocusField = field
-          setTimeout( function() { vFocusField.focus() }, 300 )
           field = document.createElement( 'input' )
         }
         return vFuncFieldBlur( field, idfld )
@@ -598,20 +731,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// Add a notice to the DAGs page. This can be used to explain how to format DAG names.
 			if ( $dagFormatNotice != '' )
 			{
-				$dagFormatNotice =
-					preg_replace( '/&lt;b&gt;(.*?)&lt;\/b&gt;/', '<b style="font-size:14px">$1</b>',
-						          preg_replace( '/&lt;a href="([^"]*)"( target="_blank")?' .
-						                        '&gt;(.*?)&lt;\/a&gt;/',
-						                        '<a href="$1"$2>$3</a>',
-						                        htmlspecialchars( $dagFormatNotice,
-						                                          ENT_NOQUOTES ) ) );
-				$dagFormatNotice = str_replace( [ "\r\n", "\n" ], '<br>', $dagFormatNotice );
-				$dagFormatNotice = '<img src="' . APP_PATH_WEBROOT .
-					               '/Resources/images/exclamation_orange.png"> ' . $dagFormatNotice;
-				$dagFormatNotice = addslashes( $dagFormatNotice );
+				$dagFormatNotice = json_encode( $dagFormatNotice );
 
 ?>
-    $( '<div class="yellow" style="max-width:900px"><?php echo $dagFormatNotice; ?></div>'
+    $( '<div class="yellow" style="max-width:900px">' + <?php echo $dagFormatNotice; ?> + '</div>'
                                                                     ).insertBefore( '#group_table' )
 <?php
 
@@ -641,6 +764,15 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// 'add new record' button and replace it with a brief explanation.
 			if( ! $this->canAddRecord )
 			{
+				$cantAddMsg = $this->tt('addrecerr_dag');
+				if ( ! $this->hasSettingsForArm )
+				{
+					$cantAddMsg = $this->tt('addrecerr_setup');
+				}
+				elseif ( $this->blockedBySettings )
+				{
+					$cantAddMsg = $this->tt('addrecerr_prohibit');
+				}
 ?>
 <script type="text/javascript">
   $(function() {
@@ -653,29 +785,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
            vListButton[ i ].innerText.trim() == '<?php echo $addText4; ?>' )
       {
         vListButton[ i ].style.display = 'none'
-<?php
-				if ( ! $this->hasSettingsForArm )
-				{
-?>
-        $( '<i>(Record numbering has not been set up for the current arm)</i>'
-               ).insertBefore( vListButton[ i ] )
-<?php
-				}
-				else if ( $this->blockedBySettings )
-				{
-?>
-        $( '<i>(New records cannot be added for this arm)</i>'
-               ).insertBefore( vListButton[ i ] )
-<?php
-				}
-				else
-				{
-?>
-        $( '<i>(You must be in a valid Data Access Group to add records)</i>'
-               ).insertBefore( vListButton[ i ] )
-<?php
-				}
-?>
+        $( '<i><?php echo $this->escape( $cantAddMsg ); ?></i>' ).insertBefore( vListButton[ i ] )
         break
       }
     }
@@ -685,9 +795,19 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			}
 			// If the record name contains a user supplied component, then ensure that the user is
 			// prompted for it when they click the 'add new record' button.
-			elseif ( $this->userSuppliedComponentPrompt !== null ||
+			elseif ( $this->promptDAG || $this->userSuppliedComponentPrompt !== null ||
 			         $this->fieldLookupPrompt !== null )
 			{
+				$promptDAG = $this->promptDAG;
+				if ( substr( $pagePath, 0, 37 ) == 'DataEntry/record_status_dashboard.php' )
+				{
+					$selectedDAG =
+						\UIState::getUIStateValue( PROJECT_ID, 'record_status_dashboard', 'dag' );
+					if ( preg_match( '/^[1-9][0-9]*$/', $selectedDAG ) )
+					{
+						$promptDAG = $selectedDAG;
+					}
+				}
 ?>
 <script type="text/javascript">
   $(function() {
@@ -705,7 +825,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				                              $this->userSuppliedComponentPrompt,
 				                              $this->userSuppliedComponentRegex,
 				                              $this->fieldLookupPrompt,
-				                              $this->fieldLookupList, false ); ?>
+				                              $this->fieldLookupList, false, $promptDAG ); ?>
 
         break
       }
@@ -733,14 +853,20 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
   $(function() {
 <?php
 
-			if ( $this->userGroup !== null )
+			if ( $this->userGroup !== null ||
+			     isset( $_SESSION['module_customrecordnaming_selecteddag'] ) )
 			{
+				$userGroup = $this->userGroup;
+				if ( $userGroup == null )
+				{
+					$userGroup = $_SESSION['module_customrecordnaming_selecteddag'];
+				}
 
 ?>
     var vDAGSelect = $('select[name=__GROUPID__]')
     if ( vDAGSelect.length == 1 && vDAGSelect[0].value == '' )
     {
-      vDAGSelect[0].value = '<?php echo $this->userGroup; ?>'
+      vDAGSelect[0].value = '<?php echo $userGroup; ?>'
     }
 <?php
 
@@ -755,7 +881,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			{
 
 ?>
-    $('select[name="<?php echo $this->escapeHTML( $_GET['page'] );
+    $('select[name="<?php echo $this->escape( $_GET['page'] );
 ?>_complete"] option:not([value="2"])').remove()
 <?php
 
@@ -815,20 +941,23 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
           width:420
         })
       }
-      var vURLTable = $('<table><tr><th style="border:solid #000 1px;padding:3px">DAG</th>' +
-                        '<th style="border:solid #000 1px;padding:3px">Public Survey URL</th>' +
+      var vURLTable = $('<table><tr><th style="border:solid #000 1px;padding:3px">' +
+                        '<?php echo addslashes( $this->tt('pubsurv_dag') ); ?></th>' +
+                        '<th style="border:solid #000 1px;padding:3px">' +
+                        '<?php echo addslashes( $this->tt('pubsurv_url') ); ?></th>' +
                         '<th style="border:solid #000 1px;padding:3px"><img ' +
                         'src="<?php echo APP_PATH_WEBROOT; ?>Resources/images/qrcode.png" ' +
-                        'style="vertical-align:middle"> QR Code</th></tr></table>')
+                        'style="vertical-align:middle"> ' +
+                        '<?php echo addslashes( $this->tt('pubsurv_qr') ); ?></th></tr></table>')
 <?php
 				$dagURL = $this->dagQueryID( '' );
 ?>
       var vURLTR = $('<tr><td style="border:solid #000 1px;padding:3px"><i>none</i></td>' +
                      '<td style="border:solid #000 1px;padding:3px">' + vBaseURL + '&amp;_dag=' +
-                     '<?php echo $this->escapeHTML( $dagURL ); ?></td>' +
+                     '<?php echo $this->escape( $dagURL ); ?></td>' +
                      '<td style="border:solid #000 1px;padding:3px;text-align:center">' +
                      '<a href="#" data-qr="' + vURLCode + '%26_dag%3D' +
-                     '<?php echo $this->escapeHTML( $dagURL ); ?>">View</a></td></tr>')
+                     '<?php echo $this->escape( $dagURL ); ?>">View</a></td></tr>')
       vURLTR.find('td').eq(1).on('click',function(){vFuncSelect(this)})
       vURLTR.find('a[data-qr]').eq(0).on('click',function(e){vFuncQRClick(this);e.preventDefault()})
       vURLTable.append(vURLTR)
@@ -838,12 +967,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 					$dagURL = $this->dagQueryID( $dagID );
 ?>
       var vURLTR = $('<tr><td style="border:solid #000 1px;padding:3px">' +
-                     '<?php echo $this->escapeHTML( $dagName ); ?></td>' +
+                     '<?php echo $this->escape( $dagName ); ?></td>' +
                      '<td style="border:solid #000 1px;padding:3px">' + vBaseURL + '&amp;_dag=' +
-                     '<?php echo $this->escapeHTML( $dagURL ); ?></td>' +
+                     '<?php echo $this->escape( $dagURL ); ?></td>' +
                      '<td style="border:solid #000 1px;padding:3px;text-align:center">' +
                      '<a href="#" data-qr="' + vURLCode + '%26_dag%3D' +
-                     '<?php echo $this->escapeHTML( $dagURL ); ?>">View</a></td></tr>')
+                     '<?php echo $this->escape( $dagURL ); ?>">View</a></td></tr>')
       vURLTR.find('td').eq(1).on('click',function(){vFuncSelect(this)})
       vURLTR.find('a[data-qr]').eq(0).on('click',function(e){vFuncQRClick(this);e.preventDefault()})
       vURLTable.append(vURLTR)
@@ -852,8 +981,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 ?>
       vURLTable.insertAfter( vInsertAfter )
       vInsertAfter.css('display','none')
-      vURLTable.before('<p>Please note that these URLs will only work if the DAG is valid for ' +
-                       'the custom naming scheme invoked by the public survey.</p>')
+      vURLTable.before('<p><?php echo addslashes( $this->tt('pubsurv_link_note') ); ?></p>')
       $('.link-actions-container, .url-actions-container').css('display', 'none')
     }
   })
@@ -874,17 +1002,19 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 <script type="text/javascript">
   $(function()
   {
-    var vDialog = $('<div><p>The record name/number <?php
-			echo $this->escapeHTML( $_SESSION['module_customrecordnaming_amended'][0] );
-?> already exists in the project.<br>This record has been created as <b><?php
-			echo $this->escapeHTML( $_SESSION['module_customrecordnaming_amended'][1] );
-?></b>.</p></div>')
+    var vDialog = $('<div><p><?php
+			echo $this->tt( 'addrec_name_exists1',
+			                $_SESSION['module_customrecordnaming_amended'][0] ),
+			     '<br>',
+			     $this->tt( 'addrec_name_exists2',
+			                $_SESSION['module_customrecordnaming_amended'][1] );
+?></p></div>')
     vDialog.dialog(
     {
       autoOpen:true,
       modal:true,
       resizable:false,
-      title:'Record name updated',
+      title:'<?php echo addslashes( $this->tt('addrec_name_exists') ); ?>',
       width:450
     })
   })
@@ -981,6 +1111,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 		// Start by deeming the arm/DAG combo as valid.
 		$validConfig = true;
+		$nameType = '';
 
 		// Identify the set of settings for the arm.
 		$armID = $this->getArmIdFromEventId( $event_id );
@@ -988,6 +1119,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( is_array( $listSettingArmIDs ) && in_array( $armID, $listSettingArmIDs ) )
 		{
 			$armSettingID = array_search( $armID, $listSettingArmIDs );
+			$nameType = $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ];
 		}
 		else
 		{
@@ -1004,7 +1136,9 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( $validConfig )
 		{
 			$dagID = $this->dagQueryID( $_GET['_dag'] ?? $_GET['dag'], true );
-			if ( $dagID === false || $this->getGroupCode( $dagID, $armSettingID ) === false )
+			if ( $dagID === false ||
+			     ( strpos( $nameType, 'G' ) !== false &&
+			       $this->getGroupCode( $dagID, $armSettingID ) === false ) )
 			{
 				$validConfig = false;
 			}
@@ -1023,7 +1157,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$dagParam = preg_replace( '/[^0-9A-Za-z]/', '', $_GET['_dag'] ?? $_GET['dag'] );
 
 		// Get the public survey logic mode and apply it if applicable.
-		$nameType = $this->getProjectSetting( 'scheme-name-type' )[ $armSettingID ];
 		$pubSvLogicMode =
 				$this->getProjectSetting( 'scheme-public-survey-logic-mode' )[ $armSettingID ];
 		if ( strpos( $nameType, 'S' ) !== false )
@@ -1119,9 +1252,43 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 
+	// Function which can be called by other modules to ask that a record name be created.
+	// Note that the record is not actually created by this function, but only when data is first
+	// written to the record ID.
+	public function createRecord( $eventID, $dagID )
+	{
+		$getPidValue = isset( $_GET['pid'] ) ? $_GET['pid'] : null;
+		$_GET['pid'] = (string)$this->query('SELECT ea.project_id FROM redcap_events_metadata em ' .
+		                                    'JOIN redcap_events_arms ea ON em.arm_id = ea.arm_id ' .
+		                                    'WHERE em.event_id = ?',
+		                                    [ $eventID ] )->fetch_assoc()['project_id'];
+		$listSettingArmIDs = $this->getProjectSetting( 'scheme-arm' );
+		$armID = $this->getArmIdFromEventId( $eventID );
+		$dagID = ( $dagID === null ) ? '' : $dagID;
+		$recordName = null;
+		if ( is_array( $listSettingArmIDs ) && in_array( $armID, $listSettingArmIDs ) )
+		{
+			$armSettingID = array_search( $armID, $listSettingArmIDs );
+			$groupCode = $this->getGroupCode( $dagID, $armSettingID );
+			$groupCode = ( $groupCode === false ) ? '' : $groupCode;
+			$recordName = $this->generateRecordName( $armID, $armSettingID, $groupCode, null, true );
+		}
+		if ( $getPidValue === null )
+		{
+			unset( $_GET['pid'] );
+		}
+		else
+		{
+			$_GET['pid'] = $getPidValue;
+		}
+		return $recordName;
+	}
+
+
+
 	// Echo plain text to output (without Psalm taints).
 	// Use only for e.g. JSON or CSV output.
-	function echoText( $text )
+	public function echoText( $text )
 	{
 		$text = htmlspecialchars( $text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_XHTML );
 		$chars = [ '&amp;' => 38, '&quot;' => 34, '&apos;' => 39, '&lt;' => 60, '&gt;' => 62 ];
@@ -1130,14 +1297,6 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		{
 			echo isset( $chars[ $part ] ) ? chr( $chars[ $part ] ) : $part;
 		}
-	}
-
-
-
-	// Escapes text for inclusion in HTML.
-	function escapeHTML( $text )
-	{
-		return htmlspecialchars( $text, ENT_QUOTES );
 	}
 
 
@@ -1167,10 +1326,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		$listFullSettings = $this->getProjectSettings();
 		foreach ( $listSettingFields as $key )
 		{
-			$value = $listFullSettings[ $key ];
 			if ( ! in_array( $key, [ 'enabled', 'scheme-settings',
-			                         'project-last-record', 'project-record-counter' ] ) )
+			                         'project-last-record', 'project-record-counter' ] ) &&
+			     array_key_exists( $key, $listFullSettings ) && $listFullSettings[ $key ] !== null )
 			{
+				$value = $listFullSettings[ $key ];
 				if ( $key == 'scheme-arm' )
 				{
 					array_walk( $value,
@@ -1209,15 +1369,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	// Get the list of record name types.
 	public function getListRecordNameTypes()
 	{
-		return [ 'R' => 'Record number',
-                 'G' => 'DAG',
-                 'U' => 'User supplied',
-                 'T' => 'Timestamp',
-                 'S' => 'Public survey logic',
-                 'F' => 'Field value lookup',
-                 'C' => 'Check digits',
-                 'Z' => 'Username',
-                 '1' => 'Constant value' ];
+		$listTypes = [];
+		foreach ( [ 'R', 'G', 'U', 'T', 'S', 'F', 'C', 'Z', '1' ] as $code )
+		{
+			$listTypes[ $code ] = $this->tt( 'nametype_' . $code );
+		}
+		return $listTypes;
 	}
 
 
@@ -1237,7 +1394,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		if ( $settings['dag-format'] != '' &&
 		     preg_match( $this->makePcreString( $settings['dag-format'] ), '' ) === false )
 		{
-			$errMsg .= "\n- Invalid regular expression for restrict DAG name format";
+			$errMsg .= "\n- " . $this->tt('validate_setting_dag_format');
 		}
 
 		// Validate the settings for each custom naming scheme.
@@ -1248,11 +1405,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			// Check the arm is specified and has not already had a scheme defined for it.
 			if ( $settings['scheme-arm'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) . ": Value required for target arm";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_arm_req', ($i + 1) );
 			}
 			elseif ( in_array( $settings['scheme-arm'][$i], $definedArms ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) . ": Scheme already defined for arm";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_arm_def', ($i + 1) );
 			}
 			$definedArms[] = $settings['scheme-arm'][$i];
 
@@ -1261,31 +1418,27 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( ! isset( $settings['scheme-name-type'][$i] ) ||
 			     $settings['scheme-name-type'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Value required for record name type";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_name_type', ($i + 1) );
 			}
 			elseif ( ! empty( array_diff( str_split( $settings['scheme-numbering'][$i], 1 ),
 			                              array_merge( ['','A'],
 			                               str_split( $settings['scheme-name-type'][$i], 1 ) ) ) ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) . ": Record numbering can only use" .
-				           " the selected record name types";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_numbering', ($i + 1) );
 			}
 
 			// Ensure that the constant value has been set if selected.
 			if ( strpos( $settings['scheme-name-type'][$i], '1' ) !== false &&
 			     $settings['scheme-const1'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Constant value cannot be blank if constant value used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_const1', ($i + 1) );
 			}
 
 			// Ensure that the starting number, if set, is a positive integer.
 			if ( $settings['scheme-number-start'][$i] != '' &&
 			     ! preg_match( '/^0|[1-9][0-9]*$/', $settings['scheme-number-start'][$i] ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": First record number must be a positive integer";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_number_start', ($i + 1) );
 			}
 
 			// Validate the DAG name format for the naming scheme. This is required if the record
@@ -1295,40 +1448,34 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'G' ) !== false &&
 			     $settings['scheme-dag-format'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Value required for DAG name format";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_dag_format_1', ($i + 1) );
 			}
 			elseif ( $settings['scheme-dag-format'][$i] != '' &&
 			         preg_match( $this->makePcreString( $settings['scheme-dag-format'][$i] ),
 			                     '' ) === false )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Invalid regular expression for DAG name format";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_dag_format_2', ($i + 1) );
 			}
 			elseif ( $settings['scheme-dag-format'][$i] == '' &&
 			         $settings['scheme-dag-section'][$i] != '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": DAG format subpattern specified but DAG name format not specified";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_dag_section_1', ($i + 1) );
 			}
 			elseif ( $settings['scheme-dag-format'][$i] != '' &&
 			         $settings['scheme-dag-section'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": DAG name format specified but DAG format subpattern not specified";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_dag_section_2', ($i + 1) );
 			}
 			elseif ( $settings['scheme-dag-section'][$i] != '' &&
 			         ! preg_match( '/^0|[1-9][0-9]*$/', $settings['scheme-dag-section'][$i] ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": DAG format subpattern must be an integer";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_dag_section_3', ($i + 1) );
 			}
 			elseif ( $settings['scheme-dag-section'][$i] >
 			         substr_count( str_replace( [ '\\\\', '\(' ], '',
 			                                    $settings['scheme-dag-format'][$i] ), '(' ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Specified DAG format subpattern greater than number of subpatterns";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_dag_section_4', ($i + 1) );
 			}
 
 			// Ensure that the prompt for the user supplied name is provided if the record name type
@@ -1336,8 +1483,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'U' ) !== false &&
 			     $settings['scheme-prompt-user-supplied'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": User supplied name prompt cannot be blank if user supplied name used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_usrsuppl', ($i + 1) );
 			}
 
 			// Validate the user supplied name format for the naming scheme.
@@ -1345,16 +1491,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'U' ) !== false &&
 			     $settings['scheme-user-supplied-format'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": User supplied name format cannot be blank if user supplied name used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_usrsuppl_fmt_1', ($i + 1) );
 			}
 			elseif ( $settings['scheme-user-supplied-format'][$i] != '' &&
 			         preg_match( $this->makePcreString(
 			                                       $settings['scheme-user-supplied-format'][$i] ),
 			                     '' ) === false )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Invalid regular expression for user supplied name format";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_usrsuppl_fmt_2', ($i + 1) );
 			}
 
 			// Ensure that the timestamp format and timezone are provided if the record name type
@@ -1362,14 +1506,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'T' ) !== false &&
 			     $settings['scheme-timestamp-format'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Timestamp format cannot be blank if timestamp used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_timestamp_fmt', ($i + 1) );
 			}
 			if ( strpos( $settings['scheme-name-type'][$i], 'T' ) !== false &&
 			     $settings['scheme-timestamp-tz'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Timezone cannot be blank if timestamp used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_timestamp_tz', ($i + 1) );
 			}
 
 			// Ensure that the prompt for the field lookup is provided if the record name type
@@ -1377,8 +1519,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'F' ) !== false &&
 			     $settings['scheme-prompt-field-lookup'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Field lookup prompt cannot be blank if field value lookup used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_field_lookup_1', ($i + 1) );
 			}
 
 			// Validate the lookup value field. This is required if the record name includes a
@@ -1386,14 +1527,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'F' ) !== false &&
 			     $settings['scheme-field-lookup-value'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Lookup value field cannot be blank if field value lookup used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_field_lookup_2', ($i + 1) );
 			}
 			elseif ( $settings['scheme-field-lookup-value'][$i] != '' &&
 			         ! in_array( $settings['scheme-field-lookup-value'][$i], $listFieldNames ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": The specified lookup value field does not exist";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_field_lookup_3', ($i + 1) );
 			}
 
 			// Validate the lookup description field. This is required if the record name includes a
@@ -1401,14 +1540,12 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'F' ) !== false &&
 			     $settings['scheme-field-lookup-desc'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Lookup description field cannot be blank if field value lookup used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_field_lookup_4', ($i + 1) );
 			}
 			elseif ( $settings['scheme-field-lookup-desc'][$i] != '' &&
 			         ! in_array( $settings['scheme-field-lookup-desc'][$i], $listFieldNames ) )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": The specified lookup description field does not exist";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_field_lookup_5', ($i + 1) );
 			}
 
 			// Ensure that the check digit algorithm is provided if the record name type includes
@@ -1416,15 +1553,14 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			if ( strpos( $settings['scheme-name-type'][$i], 'C' ) !== false &&
 			     $settings['scheme-check-digit-algorithm'][$i] == '' )
 			{
-				$errMsg .= "\n- Naming scheme " . ($i + 1) .
-				           ": Check digit algorithm cannot be blank if check digits used";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_scheme_check_digit', ($i + 1) );
 			}
 
 		}
 
 		if ( $errMsg != '' )
 		{
-			return "Your record naming configuration contains errors:$errMsg";
+			return $this->tt('validate_setting') . $errMsg;
 		}
 
 		return null;
@@ -1503,6 +1639,16 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 
+	// Get the number of existing records.
+	// Optionally with the specified record name (1 = record exists, 0 = record doesn't exist).
+	protected function countRecords( $recordName = null )
+	{
+		return count( \REDCap::getData( ( defined('PROJECT_ID') ? PROJECT_ID : $_GET['pid'] ),
+		                                'array', $recordName, $this->getRecordIdField() ) );
+	}
+
+
+
 	// Get a DAG value for the survey query string or check that a DAG query value is valid.
 	protected function dagQueryID( $dag, $check = false )
 	{
@@ -1548,11 +1694,54 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 
-	// Get the number of existing records.
-	// Optionally with the specified record name (1 = record exists, 0 = record doesn't exist).
-	protected function countRecords( $recordName = null )
+	// Evaluates logic for arm access / creating records.
+	protected function evaluateLogic( $logic, $armID )
 	{
-		return count( \REDCap::getData( 'array', $recordName, \REDCap::getRecordIdField() ) );
+		// Empty logic always evaluates as true.
+		if ( $logic == '' )
+		{
+			return true;
+		}
+		// If the logic is not syntactically valid, return false.
+		if ( ! \LogicTester::isValid( preg_replace( '/\\[count-(project|arm)\\]/', '0', $logic ) ) )
+		{
+			return false;
+		}
+		// Replace any smart variables in the logic, including module specific smart variables.
+		$dataTable = \REDCap::getDataTable( $this->getProjectId() );
+		$counts = $this->query( 'WITH proj AS (SELECT DISTINCT record FROM ' . $dataTable . ' d ' .
+		                        'WHERE d.project_id = ?), arm AS (SELECT DISTINCT record FROM ' .
+		                        $dataTable . ' d JOIN redcap_events_metadata em ON d.event_id = ' .
+		                        'em.event_id WHERE d.project_id = ? AND arm_id = ?) ' .
+		                        'SELECT (SELECT count(*) FROM proj) proj, ' .
+		                        '(SELECT count(*) FROM arm) arm',
+		                        [ $this->getProjectId(), $this->getProjectId(), $armID ] )
+		                        ->fetch_assoc();
+		$listStr = preg_split('/([\'"])/', $logic, -1, PREG_SPLIT_DELIM_CAPTURE );
+		$quote = '';
+		$logic = '';
+		foreach ( $listStr as $strPart )
+		{
+			if ( $quote == '' && ( $strPart == "'" || $strPart == '"' ) )
+			{
+				$quote = $strPart;
+			}
+			elseif ( $quote != '' && $quote == $strPart )
+			{
+				$quote = '';
+			}
+			elseif ( $quote == '' )
+			{
+				$strPart = str_replace( '[count-project]', $counts['proj'], $strPart );
+				$strPart = str_replace( '[count-arm]', $counts['arm'], $strPart );
+				$strPart = \Piping::pipeSpecialTags( $strPart, $this->getProjectId(), null, null,
+				                                     null, null, true, null, null, false, false,
+				                                     false, true, false, false, true );
+			}
+			$logic .= $strPart;
+		}
+		// Evaluate the logic.
+		return \LogicTester::apply( $logic );
 	}
 
 
@@ -1694,7 +1883,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			$hasCheckDigits = ( strpos( $nameType, 'C' ) !== false );
 			if ( $hasCheckDigits )
 			{
-				if ( $chkDigitAlg == 'mod97' )
+				if ( in_array( $chkDigitAlg, [ 'mod97', 'mod11' ] ) )
 				{
 					$namingRuns = [1,2];
 				}
@@ -1735,6 +1924,23 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 						// Reset record name to blank.
 						$recordName = '';
 					}
+					if ( $namingRun == 2 && $chkDigitAlg == 'mod11' )
+					{
+						// Consider numbers only.
+						$recordName = preg_replace( '/[^0-9]/', '', strtoupper($recordName) );
+						// Calculate mod-11 of converted record name.
+						$checkDigits = 0;
+						while ( strlen( $recordName ) > 0 )
+						{
+							$checkDigits += intval( substr( $recordName, 0, 1 ) ) *
+							                ( strlen( $recordName ) + 1 );
+							$recordName = substr( $recordName, 1 );
+						}
+						$checkDigits = ( 11 - ( $checkDigits % 11 ) ) % 11;
+						$checkDigits = strval( $checkDigits == 10 ? 'X' : $checkDigits );
+						// Reset record name to blank.
+						$recordName = '';
+					}
 				}
 				// Build the record name from the components selected, separated by the separator
 				// value (if not constant value).
@@ -1772,7 +1978,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 					}
 					elseif ( substr( $nameType, $i, 1 ) == 'C' ) // check digits
 					{
-						if ( $namingRun == 2 && $chkDigitAlg == 'mod97' )
+						if ( $namingRun == 2 && in_array( $chkDigitAlg, [ 'mod97', 'mod11' ] ) )
 						{
 							$recordName .= $checkDigits;
 						}
@@ -1859,8 +2065,10 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	// Given a DAG ID, get the DAG code for use in record names.
 	protected function getGroupCode( $dagID, $armSettingID )
 	{
-		$listGroups = \REDCap::getGroupNames( false );
-		$groupName = isset( $listGroups[ $dagID ] ) ? $listGroups[ $dagID ] : '';
+		$groupName = $this->query( 'SELECT group_name FROM redcap_data_access_groups ' .
+		                           'WHERE project_id = ? AND group_id = ? LIMIT 1',
+		                           [ $_GET['pid'], $dagID ] )->fetch_assoc();
+		$groupName = ( $groupName ? $groupName['group_name'] : '' );
 		$dagFormat = $this->getProjectSetting( 'scheme-dag-format' )[ $armSettingID ];
 		if ( $groupName == '' )
 		{
@@ -1884,11 +2092,11 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	// Prompt the user for record name components.
 	protected function makeUserPromptJS( $jsParams, $jsFinal, $jsCancel, $userSuppliedPrompt,
 	                                     $userSuppliedRegex, $fieldValuePrompt, $listFields,
-	                                     $isSurvey )
+	                                     $isSurvey, $dag = false )
 	{
 		$fnFormatPromptText = function( $text )
 		{
-			$text = $this->escapeHTML( $text );
+			$text = $this->escape( $text );
 			$text = nl2br( $text, false );
 			$text = str_replace( ["\r", "\n"], '', $text );
 			$fnParse = function( $m )
@@ -1902,6 +2110,28 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			                              $fnParse, $text );
 		};
 		$output = "function ($jsParams) { var vDialog = $('<div></div>');";
+		if ( $dag !== false )
+		{
+			$output .= "vDialog.append('<p>" . addslashes( $this->tt('prompt_dag') ) . "</p>');" .
+			           "var vDAGList = $('<select><option></option>";
+			foreach ( \REDCap::getGroupNames() as $dagID => $dagName )
+			{
+				$output .= '<option';
+				if ( is_integer( $dag ) )
+				{
+					$output .= ' selected';
+				}
+				$output .= ' value="' . $this->escape( $dagID ) . '">' .
+				           $this->escape( $dagName ) . '</option>';
+			}
+			$output .= "');vDialog.append($('<p style=\"max-width:99%\"></p>').append(vDAGList));" .
+			           "var vDAGListErr = $('<p style=\"color:#c00\"></p>');" .
+			           "vDialog.append(vDAGListErr);";
+		}
+		if ( $dag !== false && ( $userSuppliedPrompt !== null || $fieldValuePrompt !== null ) )
+		{
+			$output .= "vDialog.append('<hr>');";
+		}
 		if ( $userSuppliedPrompt !== null )
 		{
 			$output .= "vDialog.append('<p>" .
@@ -1922,8 +2152,8 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 			           "var vFieldValues = $('<select><option></option>";
 			foreach ( $listFields as $fieldValue => $fieldDesc )
 			{
-				$output .= '<option value="' . $this->escapeHTML( $fieldValue ) .
-				           '">' . $this->escapeHTML( $fieldDesc ) . '</option>';
+				$output .= '<option value="' . $this->escape( $fieldValue ) .
+				           '">' . $this->escape( $fieldDesc ) . '</option>';
 			}
 			$output .= "</select>');" .
 			           "vDialog.append($('<p style=\"max-width:99%\"></p>').append(vFieldValues))" .
@@ -1934,20 +2164,33 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		           addslashes( $isSurvey ? $GLOBALS['lang']['survey_200']
 		                                 : $GLOBALS['lang']['data_entry_46'] ) .
 		           '":function(){var vValid = true;';
+		if ( $dag !== false )
+		{
+			$output .= "vDAGListErr.text('');if (vDAGList.val() == ''){vValid = false;" .
+			           "vDAGListErr.text('" . addslashes( $this->tt('prompt_err_blank') ) . "')};";
+		}
 		if ( $userSuppliedPrompt !== null )
 		{
 			$output .= "vUserSuppliedErr.text('');if (vUserSupplied.val() == ''){vValid = false;" .
-			           "vUserSuppliedErr.text('Sorry, this field cannot be blank.')" .
-			           "}else if(!new RegExp(" . json_encode( $userSuppliedRegex ) .
+			           "vUserSuppliedErr.text('" . addslashes( $this->tt('prompt_err_blank') ) .
+			           "')}else if(!new RegExp(" . json_encode( $userSuppliedRegex ) .
 			           ").test( vUserSupplied.val() ) ){vValid = false;" .
-			           "vUserSuppliedErr.text('Sorry, the value you entered was not valid.')};";
+			           "vUserSuppliedErr.text('" . addslashes( $this->tt('prompt_err_invalid') ) .
+			           "')};";
 		}
 		if ( $fieldValuePrompt !== null )
 		{
 			$output .= "vFieldValuesErr.text('');if (vFieldValues.val() == ''){vValid = false;" .
-			           "vFieldValuesErr.text('Sorry, this field cannot be blank.')};";
+			           "vFieldValuesErr.text('" . addslashes( $this->tt('prompt_err_blank') ) .
+			           "')};";
 		}
 		$output .= 'if (vValid){';
+		if ( $dag !== false )
+		{
+			$output .= "document.cookie = 'redcap_custom_record_name_selecteddag=' + " .
+			           "encodeURIComponent( vDAGList.val() ) + ';secure';" .
+			           "vDAGList.prop('disabled',true);";
+		}
 		if ( $userSuppliedPrompt !== null )
 		{
 			$output .= "document.cookie = 'redcap_custom_record_name=' + " .
@@ -2111,6 +2354,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 	private $userGroup;
 	private $groupCode;
 	private $allowNew;
+	private $promptDAG;
 
 }
 

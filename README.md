@@ -48,10 +48,10 @@ options:
 * **Timestamp**<br>
   The current date/time, according to the specified format and timezone.
 * **Public survey logic**<br>
-  If the record is created via a public survey, run the logic on the submitted record to get the
-  name component. This could just reference a single field or it could combine fields using
-  calculation functions.<br>
-  *Note that this component is ignored if the record is not created via survey.*
+  If the record is created via a public survey or the REDCap mobile app (not MyCap), run the logic
+  on the submitted record to get the name component. This could just reference a single field or it
+  could combine fields using calculation functions.<br>
+  *Note that this component is ignored if the record is not created via survey or mobile app.*
 * **Field value lookup**<br>
   A field value from an existing record in the project, which the user will be prompted for when
   they create the record.
@@ -197,11 +197,28 @@ This is the algorithm used to generate the check digits for the record name.
   To verify mod97 check digits, calculate modulo-97 of the record name as described above, but with
   the check digits at the end of the number in place of the two zeros. The result will be 1 for a
   valid record name.
+* **mod11** (1 digit)<br>
+  The mod11 algorithm will consider only the numeric characters in the record name (i.e. all
+  non-numeric characters are discarded for the calculation). The algorithm will then proceed in the
+  same manner as used in NHS number and ISBN-10 check digits. Each digit of the record name is
+  multiplied by its position from the right (where the rightmost digit is position 2, the digit
+  second from right is position 3, etc.), then the results are summed together. The modulo-11
+  (remainder after dividing by 11) of the sum is then calculated. This is then subtracted from 11 to
+  provide the final result, which is the check digit if it is a single digit, otherwise the check
+  digit is `X` if the result is 10 or `0` if the result is 11.<br>
+  To verify mod11 check digit, calculate modulo-11 of the record name as described above. The check
+  digit is the number which must be added to get a multiple of 11.
 
 ### Trigger record naming
 Set the conditions in which the module will generate a record name.
-* **On auto numbering**<br>
-  This option will generate a record name whenever REDCap record auto-numbering is attempted.
+* **Default**<br>
+  This option is intended to invoke custom record naming in all scenarios where it is sensible to do
+  so. It is currently equivalent to *on auto numbering only* but this may change in future.
+* **On auto numbering only**<br>
+  This option will generate a record name whenever REDCap record auto-numbering is attempted. It is
+  guaranteed not to interfere with the module's ability to generate a name but does nothing to stop
+  the assignment of record names in ways which bypass the module (e.g. manually entering a value in
+  the `id` parameter of the URL).
 * **On auto numbering and when naming in REDCap format**<br>
   This option will generate a record name on auto-numbering and whenever a record is created with a
   REDCap format name (one number e.g. *12* or two numbers separated by a dash e.g. *32-6*). This
@@ -215,15 +232,30 @@ Set the conditions in which the module will generate a record name.
 
 ### Allow new records on this arm
 Optionally limit creation of records on the arm.
-* **Always**<br>
-  New records can always be created.
-* **Always, enforce complete status on first submission**<br>
-  New records can always be created, but the first form submission on each record must have the form
-  status set to *complete* (the other form status options will be hidden). This can be used in
-  combination with validation enforcement which takes place when the form status is set to
-  *complete* so that invalid records cannot be created.
+* **Forms and surveys (default)**<br>
+  New records can be created using data entry forms and public surveys.
+* **Forms and surveys, enforce complete status on first submission**<br>
+  New records can be created using data entry forms and public surveys, but in form mode, the first
+  form submission on a new record must have the form status set to *complete* (the other form status
+  options will be hidden). This can be used in combination with validation enforcement which takes
+  place when the form status is set to *complete* so that invalid records cannot be created (e.g.
+  using the [Validation Tweaker](https://github.com/Nottingham-CTU/Validation-Tweaker) module).
 * **On surveys only**<br>
   Prohibit the creation of new records except via public surveys.
+
+### Logic to allow new records on this arm
+If REDCap logic is entered here, it must evaluate to true in order for new records to be created.
+If the logic evaluates to false, new records will be prohibited on this arm.
+
+This logic field supports additional smart variables: `[count-project]` (number of existing records
+in the project), and `[count-arm]` (number of existing records in the arm).
+
+### Logic to allow access to this arm
+If REDCap logic is entered here, it must evaluate to true for the arm to be accessible. If the logic
+evaluates to false, the module will prohibit the user from accessing this arm and will attempt to
+redirect to an accessible arm.
+
+This logic field supports the additional smart variables described above.
 
 ### Load data entry form
 Specify a data entry form to load when a new record is created (instead of the record home page).
