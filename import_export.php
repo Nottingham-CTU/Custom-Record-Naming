@@ -16,12 +16,13 @@ $listRecordNameTypes = [ 'A' => 'Arm' ] + $module->getListRecordNameTypes();
 
 // Define setting names for export/import.
 $globalSettingNames = [ 'dag-format', 'dag-format-notice' ];
-$schemeSettingNames = [ 'name-type', 'name-prefix', 'name-separator', 'name-suffix', 'const1',
-                        'numbering', 'number-start', 'number-pad', 'dag-format', 'dag-section',
-                        'prompt-user-supplied', 'user-supplied-format', 'timestamp-format',
-                        'timestamp-tz', 'prompt-field-lookup', 'field-lookup-value',
-                        'field-lookup-desc', 'field-lookup-filter', 'check-digit-algorithm',
-                        'name-trigger', 'allow-new', 'instrument' ];
+$schemeSettingNames =
+	array_reduce( $module->getConfig()['project-settings'],
+	              fn( $c, $i ) => $i['key'] == 'scheme-settings' ? $i['sub_settings'] : $c );
+$schemeSettingNames =
+	array_reduce( $schemeSettingNames,
+	              fn( $c, $i ) => $i['key'] == 'scheme-arm'
+	                              ? $c : array_merge( $c, [ substr( $i['key'], 7 ) ] ), [] );
 
 
 // Export the data.
@@ -91,7 +92,8 @@ if ( isset( $_FILES['import'] ) )
 				elseif ( $projectSettings[$i]['type'] != 'descriptive' )
 				{
 					$settingNames[ $projectSettings[$i]['key'] ] =
-						preg_replace( '/<[^>]+>/', '', $projectSettings[$i]['name'] );
+						preg_replace( '/\\([^)]+\\)/', '',
+							preg_replace( '/<[^>]+>/', '', $projectSettings[$i]['name'] ) );
 					if ( isset( $projectSettings[$i]['choices'] ) )
 					{
 						foreach ( $projectSettings[$i]['choices'] as $choice )
@@ -197,7 +199,7 @@ elseif ( isset( $_POST['import'] ) )
 			$newSchemeSettings['scheme-arm'][] = "$newArmID";
 			foreach ( $schemeSettingNames as $setting )
 			{
-				$newSchemeSettings["scheme-$setting"][] = $newArmData[$setting];
+				$newSchemeSettings["scheme-$setting"][] = $newArmData[$setting] ?? '';
 			}
 		}
 		// Apply the new scheme settings.
