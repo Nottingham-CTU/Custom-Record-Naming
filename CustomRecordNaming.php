@@ -2256,7 +2256,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 		{
 			$this->setDAG( $oldRecordID, $dagID );
 		}
-		if ( $oldRecordID != $newRecordID )
+		if ( (string)$oldRecordID !== (string)$newRecordID )
 		{
 			$newRecordIDFinal = $newRecordID;
 			$newRecordIDCtr = 0;
@@ -2265,7 +2265,22 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 				$newRecordIDCtr++;
 				$newRecordIDFinal = $newRecordID . '--' . $newRecordIDCtr;
 			}
+			if ( isset( $_GET['event_id'] ) )
+			{
+				// Ensure $_GET['event_id'] is set so the changeRecordId function applies the
+				// rename to the correct arm.
+				$getEventID = $_GET['event_id'];
+				$_GET['event_id'] = $eventID;
+			}
 			\DataEntry::changeRecordId( $oldRecordID, $newRecordIDFinal );
+			if ( isset( $getEventID ) )
+			{
+				$_GET['event_id'] = $getEventID;
+			}
+			else
+			{
+				unset( $_GET['event_id'] );
+			}
 		}
 		return $newRecordID;
 	}
