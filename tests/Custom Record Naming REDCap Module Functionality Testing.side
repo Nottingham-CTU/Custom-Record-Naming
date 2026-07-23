@@ -1245,10 +1245,22 @@
           "id": "58053753-c24e-4d11-9c87-971f9d91c75d"
         },
         {
+          "command": "pause",
+          "target": "500",
+          "value": "",
+          "id": "ead4c23d-0913-453a-9c97-69efad233abb"
+        },
+        {
           "command": "dragAndDropToObject",
           "target": "css=.ui-sortable-handle[data-value=\"R\"]",
           "value": "css=.ui-sortable-handle[data-value=\"U\"]",
           "id": "be984431-2328-4d84-8b97-4021b30c0e56"
+        },
+        {
+          "command": "pause",
+          "target": "500",
+          "value": "",
+          "id": "7e66980b-3dad-4db5-8e09-8e5d18b908b5"
         },
         {
           "command": "assertValue",
@@ -6240,6 +6252,12 @@
           "id": "e8568c81-866e-450c-8103-8d2a48d69662"
         },
         {
+          "command": "runScript",
+          "target": "$.post('../ProjectGeneral/set_ui_state.php?'+window.location.search.replace(/.*(pid=[0-9]+).*/,'$1'),'object=aer_prefs&name=arm_last&state=1&global=0&redcap_csrf_token='+$('[name=\"redcap_csrf_token\"]').val())",
+          "value": "",
+          "id": "a3911dfd-2c13-4296-a839-1e3beb8ccb54"
+        },
+        {
           "command": "click",
           "target": "css=a[href*=\"DataEntry/record_home.php\"]:not([href*=\"logout=1\"])",
           "value": "",
@@ -6247,10 +6265,52 @@
           "comment": ""
         },
         {
+          "command": "runScript",
+          "target": "$('#south').remove()",
+          "value": "",
+          "id": "59947a52-2362-45e3-8453-2e2cf2e3dac8"
+        },
+        {
+          "command": "if",
+          "target": "$('#select2-arm_name-container').length > 0",
+          "value": "",
+          "id": "fed94d81-b864-407e-addb-903b471182c2"
+        },
+        {
+          "command": "click",
+          "target": "xpath=//*[contains(@class,'select2-container')][descendant::*[@id='select2-arm_name-container']]",
+          "value": "",
+          "id": "4766ae4e-1c66-4cbd-9c96-4ffa3119808b"
+        },
+        {
+          "command": "click",
+          "target": "xpath=//ul[@id='select2-arm_name-results']/li[2]",
+          "value": "",
+          "id": "8b5bb53f-cf55-4dd2-a9ed-06b1ed6ed30b"
+        },
+        {
+          "command": "else",
+          "target": "",
+          "value": "",
+          "id": "d89a1b3c-abe0-4fb9-815a-c4218fded156"
+        },
+        {
           "command": "select",
           "target": "id=arm_name",
           "value": "value=2",
           "id": "42195f39-cfef-4c20-a0a4-4677c33bebbb"
+        },
+        {
+          "command": "end",
+          "target": "",
+          "value": "",
+          "id": "bb664dc6-e71c-4e14-86b8-d7ac76dd15a6"
+        },
+        {
+          "command": "waitForElementPresent",
+          "target": "id=south",
+          "value": "30000",
+          "id": "6634b138-7f29-4211-9778-c94d6bf686f9"
         },
         {
           "command": "waitForElementNotVisible",
@@ -6603,6 +6663,12 @@
           "id": "ae888ac0-bfb9-4577-a640-eda3c1000cdf"
         },
         {
+          "command": "runScript",
+          "target": "$.post('../ProjectGeneral/set_ui_state.php?'+window.location.search.replace(/.*(pid=[0-9]+).*/,'$1'),'object=aer_prefs&name=arm_last&state=1&global=0&redcap_csrf_token='+$('[name=\"redcap_csrf_token\"]').val())",
+          "value": "",
+          "id": "2f0dd0a5-f436-4b18-be74-25e5f38c88c2"
+        },
+        {
           "command": "click",
           "target": "css=a[href*=\"DataEntry/record_home.php\"]",
           "value": "",
@@ -6615,10 +6681,40 @@
           "id": "30ad270a-2835-4b33-ae4b-c7312a0a409a"
         },
         {
+          "command": "if",
+          "target": "$('#select2-arm_name-container').length > 0",
+          "value": "",
+          "id": "aa581f1e-23a2-4a7c-aa05-2baf7d95c154"
+        },
+        {
+          "command": "click",
+          "target": "xpath=//*[contains(@class,'select2-container')][descendant::*[@id='select2-arm_name-container']]",
+          "value": "",
+          "id": "b6e7364e-30fb-4fec-a500-022641251aab"
+        },
+        {
+          "command": "click",
+          "target": "xpath=//ul[@id='select2-arm_name-results']/li[2]",
+          "value": "",
+          "id": "d8e4fb9a-86c1-44c1-9f98-9db095387893"
+        },
+        {
+          "command": "else",
+          "target": "",
+          "value": "",
+          "id": "15038cd5-fffd-4f70-aea1-0a2d66843c82"
+        },
+        {
           "command": "select",
           "target": "id=arm_name",
           "value": "value=2",
           "id": "0b87568c-b705-4145-a5e6-8aaf235d685c"
+        },
+        {
+          "command": "end",
+          "target": "",
+          "value": "",
+          "id": "57fdc252-5ef4-4019-a602-cba833f1564e"
         },
         {
           "command": "waitForElementPresent",

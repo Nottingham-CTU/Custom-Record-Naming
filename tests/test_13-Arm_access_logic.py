@@ -42,9 +42,14 @@ class Test_13_Arm_access_logic:
     self.driver.execute_script("//SETDESC:Assert arm 2 not loaded")
     self.driver.find_element(By.CSS_SELECTOR, "a[onclick*=\"updateParameterInURL\"][onclick*=\"1\"]").send_keys("SAVESCREENSHOT")
     assert(self.vars["blockedArm2"] == "1")
+    self.driver.execute_script("$.post('../ProjectGeneral/set_ui_state.php?'+window.location.search.replace(/.*(pid=[0-9]+).*/,'$1'),'object=aer_prefs&name=arm_last&state=1&global=0&redcap_csrf_token='+$('[name=\"redcap_csrf_token\"]').val())")
     self.driver.find_element(By.CSS_SELECTOR, "a[href*=\"DataEntry/record_home.php\"]").click()
     self.driver.execute_script("$('#south').remove()")
-    self.driver.find_element(By.ID, "arm_name").find_element(By.CSS_SELECTOR, "*[value='2']").click()
+    if self.driver.execute_script("return ($('#select2-arm_name-container').length > 0)"):
+      self.driver.find_element(By.XPATH, "//*[contains(@class,'select2-container')][descendant::*[@id='select2-arm_name-container']]").click()
+      self.driver.find_element(By.XPATH, "//ul[@id='select2-arm_name-results']/li[2]").click()
+    else:
+      self.driver.find_element(By.ID, "arm_name").find_element(By.CSS_SELECTOR, "*[value='2']").click()
     WebDriverWait(self.driver, 30).until(expected_conditions.presence_of_element_located((By.ID, "south")))
     self.vars["blockedArm2"] = self.driver.execute_script("return window.location.search.indexOf('arm=2') == -1 ? '1' : '0'")
     self.driver.execute_script("//SETDESC:Assert arm 2 not loaded")

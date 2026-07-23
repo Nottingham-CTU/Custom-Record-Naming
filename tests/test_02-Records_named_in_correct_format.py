@@ -84,7 +84,9 @@ class Test_02_Records_named_in_correct_format:
     WebDriverWait(self.driver, 30).until(expected_conditions.presence_of_element_located((By.ID, "south")))
     self.driver.find_element(By.CSS_SELECTOR, "a[href*=\"prefix=custom_record_naming\"]").click()
     self.driver.find_element(By.ID, "ui-id-2").click()
+    time.sleep(0.5)
     ActionChains(self.driver).drag_and_drop(self.driver.find_element(By.CSS_SELECTOR, ".ui-sortable-handle[data-value=\"R\"]"),self.driver.find_element(By.CSS_SELECTOR, ".ui-sortable-handle[data-value=\"U\"]")).perform()
+    time.sleep(0.5)
     assert self.driver.find_element(By.NAME, "scheme-name-type[]").get_attribute("value") == "GR"
     self.driver.execute_script("//SETDESC:Swap order of naming components")
     self.driver.find_element(By.CSS_SELECTOR, ".ui-sortable-handle[data-value=\"G\"]").send_keys("SAVESCREENSHOT")
