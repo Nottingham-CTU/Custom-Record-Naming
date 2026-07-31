@@ -41,8 +41,15 @@ class Test_12_New_records_logic:
     WebDriverWait(self.driver, 30).until(expected_conditions.presence_of_element_located((By.ID, "south")))
     assert len(self.driver.find_elements(By.ID, "record_display_name")) == 0
     self.driver.execute_script("//SAVEDESC:Assert cannot bypass hidden button and create record")
+    self.driver.execute_script("$.post('../ProjectGeneral/set_ui_state.php?'+window.location.search.replace(/.*(pid=[0-9]+).*/,'$1'),'object=aer_prefs&name=arm_last&state=1&global=0&redcap_csrf_token='+$('[name=\"redcap_csrf_token\"]').val())")
     self.driver.find_element(By.CSS_SELECTOR, "a[href*=\"DataEntry/record_home.php\"]:not([href*=\"logout=1\"])").click()
-    self.driver.find_element(By.ID, "arm_name").find_element(By.CSS_SELECTOR, "*[value='2']").click()
+    self.driver.execute_script("$('#south').remove()")
+    if self.driver.execute_script("return ($('#select2-arm_name-container').length > 0)"):
+      self.driver.find_element(By.XPATH, "//*[contains(@class,'select2-container')][descendant::*[@id='select2-arm_name-container']]").click()
+      self.driver.find_element(By.XPATH, "//ul[@id='select2-arm_name-results']/li[2]").click()
+    else:
+      self.driver.find_element(By.ID, "arm_name").find_element(By.CSS_SELECTOR, "*[value='2']").click()
+    WebDriverWait(self.driver, 30).until(expected_conditions.presence_of_element_located((By.ID, "south")))
     WebDriverWait(self.driver, 5).until(expected_conditions.invisibility_of_element_located((By.CSS_SELECTOR, "#center button.btn-rcgreen")))
     self.driver.execute_script("//SAVEDESC:Assert add record button not present on add/edit records page")
     self.driver.find_element(By.CSS_SELECTOR, "a[href*=\"prefix=custom_record_naming\"]").click()
