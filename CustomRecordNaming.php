@@ -1695,7 +1695,7 @@ class CustomRecordNaming extends \ExternalModules\AbstractExternalModule
 
 
 	// Evaluates logic for arm access / creating records.
-	protected function evaluateLogic( $logic, $armID )
+	public function evaluateLogic( $logic, $armID )
 	{
 		// Empty logic always evaluates as true.
 		if ( $logic == '' )
